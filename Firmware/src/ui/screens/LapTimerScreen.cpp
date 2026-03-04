@@ -131,18 +131,7 @@ void LapTimerScreen::loadTracks() {
   }
 
   // Factory Tracks (Hardcoded)
-  // Check dist for them too
-  Track sonoma;
-  sonoma.name = "Test Track (Bordeaux)"; // Renamed to match img
-  sonoma.lat = 44.8378;                  // Bordeaux approx
-  sonoma.lon = -0.5792;
-  sonoma.isCustom = false; // Factory
-  sonoma.configs.push_back({"Default"});
-  sonoma.createdDate = "Factory";
-  sonoma.pathFile = ""; // No file for factory (or hardcode points later)
-
-  // Always add test track for DEBUG/UI TESTING
-  _tracks.push_back(sonoma);
+  // Dummy track removed per user request
 
   // --- AUTO-TRACK DETECTION ---
   if (!_tracks.empty() && gpsManager.isFixed()) {
