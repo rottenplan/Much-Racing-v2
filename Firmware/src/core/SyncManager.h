@@ -19,7 +19,8 @@ public:
   bool uploadSessions(const char *apiUrl, const char *username,
                       const char *password);
   bool uploadSingleSession(const char *apiUrl, const char *username,
-                           const char *password, String filename);
+                           const char *password, String filename,
+                           String sessionType = "TRACK");
   bool uploadGPXTracks(const char *apiUrl, const char *username,
                        const char *password);
 

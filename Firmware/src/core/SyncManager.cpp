@@ -394,11 +394,22 @@ bool SyncManager::uploadSessions(const char *apiUrl, const char *username,
     if (line.length() == 0)
       continue;
 
-    int commaIndex = line.indexOf(',');
-    if (commaIndex == -1)
+    // Format: /sessions/run_X.csv,Date,LapCount,BestLap,Type
+    int c1 = line.indexOf(',');
+    if (c1 == -1)
       continue;
 
-    String filename = line.substring(0, commaIndex);
+    String filename = line.substring(0, c1);
+
+    // Parse session type from column 5 (after 4 commas)
+    String sessionType = "TRACK"; // default
+    int c2 = line.indexOf(',', c1 + 1);
+    int c3 = (c2 != -1) ? line.indexOf(',', c2 + 1) : -1;
+    int c4 = (c3 != -1) ? line.indexOf(',', c3 + 1) : -1;
+    if (c4 != -1) {
+      sessionType = line.substring(c4 + 1);
+      sessionType.trim();
+    }
 
     // Check if checks/uploads should happen
     if (isSessionSynced(filename)) {
@@ -408,7 +419,8 @@ bool SyncManager::uploadSessions(const char *apiUrl, const char *username,
     }
 
     if (SD.exists(filename)) {
-      if (uploadSingleSession(apiUrl, username, password, filename)) {
+      if (uploadSingleSession(apiUrl, username, password, filename,
+                              sessionType)) {
         markSessionSynced(filename);
       } else {
         allSuccess = false;
@@ -690,7 +702,8 @@ bool SyncManager::uploadGPXTracks(const char *apiUrl, const char *username,
 // Removed calculateEscapedLength as it is no longer used for Base64 streaming
 
 bool SyncManager::uploadSingleSession(const char *apiUrl, const char *username,
-                                      const char *password, String filename) {
+                                      const char *password, String filename,
+                                      String sessionType) {
   _isBusy = true;
   if (WiFi.status() != WL_CONNECTED) {
     _isBusy = false;
@@ -711,11 +724,11 @@ bool SyncManager::uploadSingleSession(const char *apiUrl, const char *username,
 
   // Calculate JSON payload size for Base64
   // Overhead calculation for:
-  // {"type":"upload_session","filename":"...","is_base64":true,"csv_data":"..."}
-  // Overhead: ~70 characters
+  // {"type":"upload_session","filename":"...","session_type":"TRACK","is_base64":true,"csv_data":"..."}
+  // Overhead: ~100 characters (added ~30 for session_type field)
   size_t fileSize = f.size();
   size_t encodedLen = ((fileSize + 2) / 3) * 4; // Base64 formula
-  size_t jsonLen = 70 + filename.length() + encodedLen;
+  size_t jsonLen = 100 + filename.length() + sessionType.length() + encodedLen;
 
   String url = String(apiUrl);
   bool isHttps = url.startsWith("https://");
@@ -806,9 +819,11 @@ bool SyncManager::uploadSingleSession(const char *apiUrl, const char *username,
       }
     };
 
-    // Body Start
+    // Body Start - include session_type so server can classify DRAG vs TRACK
     bufferStr("{\"type\":\"upload_session\",\"filename\":\"");
     bufferStr(filename.c_str());
+    bufferStr("\",\"session_type\":\"");
+    bufferStr(sessionType.c_str());
     bufferStr("\",\"is_base64\":true,\"csv_data\":\"");
 
     f.seek(0);

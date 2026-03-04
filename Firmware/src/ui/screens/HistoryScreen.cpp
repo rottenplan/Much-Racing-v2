@@ -800,7 +800,7 @@ void HistoryScreen::syncSession() {
 
   bool success = syncManager.uploadSingleSession(
       API_URL, username.c_str(), password.c_str(),
-      _historyList[_lastTapIdx].filename);
+      _historyList[_lastTapIdx].filename, _historyList[_lastTapIdx].type);
 
   if (success) {
     _syncStatus = "SYNC COMPLETE";
