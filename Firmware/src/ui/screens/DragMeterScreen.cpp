@@ -145,8 +145,8 @@ void DragMeterScreen::update() {
         }
       }
     } else if (_state == STATE_SETTING_MENU) {
-      // 4 items: Height 45, Gap 8 (Matched to drawGenericMenu)
-      touchedIdx = getTouchedIndex(60, 45, 8, 360, p);
+      // 5 items: Height 38, Gap 5, StartY 55 (Matched to drawGenericMenu)
+      touchedIdx = getTouchedIndex(55, 38, 5, 360, p);
       if (touchedIdx != -1) {
         if (_selectedSettingIdx != touchedIdx) {
           _selectedSettingIdx = touchedIdx;
@@ -868,12 +868,14 @@ void DragMeterScreen::loadCustomDisciplines() {
 void DragMeterScreen::drawDashboardStatic(bool forceStatusBar) {
   TFT_eSPI *tft = _ui->getTft();
 
-  // Header
-  tft->setTextDatum(TC_DATUM);
-  tft->setFreeFont(&Org_01);
-  tft->setTextSize(2);
-  tft->setTextColor(COLOR_TEXT, COLOR_BG);
-  tft->drawString("DRAG METER", SCREEN_WIDTH / 2, STATUS_BAR_HEIGHT + 5);
+  // Header - skip for value editor (would overlap editor rows)
+  if (_state != STATE_VALUE_EDITOR) {
+    tft->setTextDatum(TC_DATUM);
+    tft->setFreeFont(&Org_01);
+    tft->setTextSize(2);
+    tft->setTextColor(COLOR_TEXT, COLOR_BG);
+    tft->drawString("DRAG METER", SCREEN_WIDTH / 2, STATUS_BAR_HEIGHT + 5);
+  }
 
   // 1. Solid Background (Removed fillScreen to match LapTimer - handled by
   // switch)
@@ -1095,10 +1097,22 @@ void DragMeterScreen::drawGenericMenu(const std::vector<String> &items,
                                       int selectedIdx) {
   TFT_eSPI *tft = _ui->getTft();
 
-  int startY = 60;
-  int btnHeight = (items.size() > 3) ? 45 : 50;
+  int startY, btnHeight, gap;
   int btnWidth = 360;
-  int gap = (items.size() > 3) ? 8 : 12;
+  if ((int)items.size() >= 5) {
+    // 5 items: compact layout to avoid overlap with back button (Y>275)
+    startY = 55;
+    btnHeight = 38;
+    gap = 5;
+  } else if ((int)items.size() > 3) {
+    startY = 60;
+    btnHeight = 45;
+    gap = 8;
+  } else {
+    startY = 60;
+    btnHeight = 50;
+    gap = 12;
+  }
   int x = (SCREEN_WIDTH - btnWidth) / 2;
 
   for (int i = 0; i < (int)items.size(); i++) {
@@ -1151,20 +1165,28 @@ void DragMeterScreen::drawValueEditor() {
   tft->setTextColor(0xFFFF, COLOR_BG);
   tft->setTextDatum(4);
 
-  // --- UNIFIED PRO UI: 3-Row Layout ---
+  // --- Info Footer ---
+  // Positioned at y = SCREEN_HEIGHT-60 to stay ABOVE:
+  //   OK/SAVE button  (y = SCREEN_HEIGHT-50 .. SCREEN_HEIGHT-10)
+  //   Back button     (y = SCREEN_HEIGHT-40 .. SCREEN_HEIGHT-20, x=15..30)
   tft->setFreeFont(NULL);
   tft->setTextFont(2);
   tft->setTextSize(1);
-  tft->setTextColor(0xFFFF, COLOR_BG);
-  tft->setTextPadding(150);
-  tft->drawString(_rolloutEnabled ? "ROLLOUT: ON" : "ROLLOUT: OFF", 10,
-                  SCREEN_HEIGHT - 20, 2);
 
-  // GPS Accuracy Info (RaceBox style)
+  // Left: Rollout status  (BL_DATUM = bottom-left, text grows to the right)
+  tft->setTextDatum(BL_DATUM);
+  tft->setTextColor(0x7BEF, COLOR_BG); // dim cyan
+  tft->setTextPadding(160);            // pad to erase old text
+  tft->drawString(_rolloutEnabled ? "ROLLOUT: ON" : "ROLLOUT: OFF", 15,
+                  SCREEN_HEIGHT - 60);
+
+  // Right: GPS satellite count  (BR_DATUM = bottom-right, text grows to the
+  // left)
   char satBuf[16];
   sprintf(satBuf, "GPS: %d SAT", gpsManager.getSatellites());
-  tft->setTextDatum(TR_DATUM);
-  tft->drawString(satBuf, SCREEN_WIDTH - 10, SCREEN_HEIGHT - 20, 2);
+  tft->setTextDatum(BR_DATUM);
+  tft->setTextPadding(130); // pad to erase old text
+  tft->drawString(satBuf, SCREEN_WIDTH - 15, SCREEN_HEIGHT - 60);
   tft->setTextPadding(0);
 
   // Layout constants
@@ -1368,31 +1390,40 @@ void DragMeterScreen::handleSettingTouch(int idx) {
   if (idx < 0 || idx >= (int)_settingItems.size())
     return;
 
-  _state = STATE_VALUE_EDITOR;
-
-  // Index-based detection (more reliable than string matching)
-  if (idx == 0) {
-    // First item: CUSTOM KPH
-    _editingTarget = "KPH_SETTING";
-    _editingFocus = 1; // Focus on "Start" (Row 1) initially
-  } else if (idx == 1) {
-    // Second item: 20m (or custom value)
-    _editingTarget = "DIST_20";
-    _editingFocus = 1; // Focus on "Value" (Row 1) for 2-row layout
-  } else if (idx == 2) {
-    // Third item: 30m (or custom value)
-    _editingTarget = "DIST_30";
-    _editingFocus = 1;
-  } else if (idx == 4) {
-    // 1-Foot Rollout Toggle
+  // idx 4: Rollout toggle - does NOT open value editor, returns early
+  if (idx == 4) {
     _rolloutEnabled = !_rolloutEnabled;
     Preferences p;
     p.begin("laptimer", false);
     p.putBool("rollout", _rolloutEnabled);
     p.end();
-    refreshSettingLabels();    // Update the label
-    drawDashboardStatic(true); // Redraw menu
+    refreshSettingLabels();
+    _state = STATE_SETTING_MENU;
+    // No fillRect: button backgrounds repaint themselves, avoids flicker
+    drawDashboardStatic(false);
     FeedbackManager::getInstance().beep(50);
+    return;
+  }
+
+  _state = STATE_VALUE_EDITOR;
+
+  // Index-based detection (more reliable than string matching)
+  if (idx == 0) {
+    // CUSTOM KPH
+    _editingTarget = "KPH_SETTING";
+    _editingFocus = 1; // Focus on "Start" (Row 1) initially
+  } else if (idx == 1) {
+    // DIST 20m
+    _editingTarget = "DIST_20";
+    _editingFocus = 1;
+  } else if (idx == 2) {
+    // DIST 30m
+    _editingTarget = "DIST_30";
+    _editingFocus = 1;
+  } else if (idx == 3) {
+    // DIST 35m (was missing - bug fix!)
+    _editingTarget = "DIST_35";
+    _editingFocus = 1;
   }
 
   _ui->getTft()->fillRect(0, STATUS_BAR_HEIGHT, SCREEN_WIDTH,
@@ -1424,7 +1455,8 @@ void DragMeterScreen::handleValueTouch(UIManager::TouchPoint p) {
         if (p.y > rowY - 30 && p.y < rowY + 30) {
           if (_editingFocus != i) {
             _editingFocus = i;
-            drawDashboardStatic(false);
+            // Use drawValueEditor() directly to avoid full-screen flicker
+            drawValueEditor();
           }
           return;
         }
@@ -1504,8 +1536,8 @@ void DragMeterScreen::handleValueTouch(UIManager::TouchPoint p) {
     else if (_editingTarget == "DIST_35")
       _customDist35m += delta;
 
-    // Redraw Editor
-    drawDashboardStatic(false);
+    // Redraw only the editor (no full-screen clear = no flicker)
+    drawValueEditor();
   }
 }
 
