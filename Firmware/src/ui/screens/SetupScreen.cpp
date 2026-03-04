@@ -128,26 +128,33 @@ void SetupScreen::drawComplete() {
   tft->fillScreen(_ui->getBackgroundColor());
 
   tft->setFreeFont(&Org_01);
-  tft->setTextSize(2);
-  tft->setTextColor(TFT_GREEN, _ui->getBackgroundColor());
   tft->setTextDatum(MC_DATUM);
 
-  // Success message
-  tft->drawString("SETUP", SCREEN_WIDTH / 2, 80);
-  tft->drawString("COMPLETE!", SCREEN_WIDTH / 2, 110);
+  // Line 1: "SETUP" → size 2, text color (like "WELCOME TO")
+  tft->setTextSize(2);
+  tft->setTextColor(_ui->getTextColor(), _ui->getBackgroundColor());
+  tft->drawString("SETUP", SCREEN_WIDTH / 2, 75);
 
-  tft->setTextSize(1);
-  tft->setTextColor(COLOR_TEXT, COLOR_BG);
+  // Line 2: "COMPLETE!" → size 4, PRIMARY color (like "MUCH RACING")
+  tft->setTextSize(4);
+  tft->setTextColor(COLOR_PRIMARY, _ui->getBackgroundColor());
+  tft->drawString("COMPLETE!", SCREEN_WIDTH / 2, 108);
 
+  // Line 3: "WELCOME [user]!" → size 2, text color (like "LET'S GET STARTED")
+  tft->setTextSize(2);
+  tft->setTextColor(_ui->getTextColor(), _ui->getBackgroundColor());
   if (_username.length() > 0) {
     String msg = "WELCOME " + _username + "!";
-    tft->drawString(msg, SCREEN_WIDTH / 2, 165);
+    tft->drawString(msg, SCREEN_WIDTH / 2, 150);
+  } else {
+    tft->drawString("LET'S RACE!", SCREEN_WIDTH / 2, 150);
   }
 
-  // Continue button (larger and lower)
-  drawButton("START RACING", SCREEN_WIDTH / 2 - 100, 210, 200, 50, false);
+  // Button
+  drawButton("START RACING", SCREEN_WIDTH / 2 - 100, 205, 200, 50, false);
 
   // --- FONT SAFETY ---
+  tft->setTextSize(1);
   tft->setFreeFont(NULL);
   tft->setTextFont(1);
   tft->setTextPadding(0);
@@ -214,46 +221,47 @@ void SetupScreen::drawTextField(const char *label, String value, int y,
                                 bool isActive, bool isPassword) {
   TFT_eSPI *tft = _ui->getTft();
 
-  // Calculate centered box
-  int boxW = 260; // Reduced from 300 for even cleaner layout
+  int boxW = 260;
   if (boxW > SCREEN_WIDTH - 20)
-    boxW = SCREEN_WIDTH - 20; // Safety constraint
+    boxW = SCREEN_WIDTH - 20;
   int boxX = (SCREEN_WIDTH - boxW) / 2;
+  int boxH = 28;
+  int boxY = y + 13;
 
-  // Optimization: Only draw label and border on full redraw or state change
-  // For simplicity here, we always draw the border to ensure it's correct
-  // but we can skip the font setting for label if we want.
-
-  // Use Org_01 (Tiny Font) for the Label
+  // --- LABEL ---
   tft->setFreeFont(&Org_01);
   tft->setTextSize(1);
-  tft->setTextDatum(BL_DATUM);
+  tft->setTextDatum(TL_DATUM);
   tft->setTextColor(_ui->getTextColor(), _ui->getBackgroundColor());
-  tft->drawString(label, boxX, y);
+  tft->setTextPadding(boxW);
+  tft->drawString(label, boxX, y + 1);
+  tft->setTextPadding(0);
 
-  // Field background (Start box at y+2 to give gap, taller box)
-  // Box: y+2 to y+32 (Height 30, increased from 25)
+  // --- BOX: border + full interior fill (DARKGREY matches text bg) ---
   uint16_t borderColor = isActive ? COLOR_PRIMARY : COLOR_SECONDARY;
-  tft->drawRect(boxX, y + 2, boxW, 30, borderColor);
-  tft->fillRect(boxX + 1, y + 3, boxW - 2, 28, TFT_DARKGREY);
+  tft->drawRect(boxX, boxY, boxW, boxH, borderColor);
+  // Fill interior exactly inside border (1px inset): matches border precisely
+  tft->fillRect(boxX + 1, boxY + 1, boxW - 2, boxH - 2, TFT_DARKGREY);
 
-  // Switch back to Standard Font 1 for Value
-  tft->setTextFont(1);
-  tft->setTextSize(1);
-
-  // Field value
+  // --- VALUE TEXT ---
   String displayValue = value;
 
-  // Draw Value centered in box (adjusted for taller box)
+  tft->setFreeFont(NULL);
+  tft->setTextFont(1);
+  tft->setTextSize(1);
   tft->setTextColor(TFT_WHITE, TFT_DARKGREY);
   tft->setTextDatum(ML_DATUM);
-  tft->drawString(displayValue, boxX + 5, y + 17);
+  // Padding covers exactly the interior width minus left margin (5px)
+  tft->setTextPadding(boxW - 2 - 5);
+  tft->drawString(displayValue, boxX + 5, boxY + boxH / 2);
+  tft->setTextPadding(0);
 
-  // Cursor
+  // --- CURSOR ---
+  int cursorX = boxX + 5 + tft->textWidth(displayValue);
   if (isActive && _cursorVisible) {
-    int cursorX = boxX + 5 + tft->textWidth(displayValue);
-    // Cursor Line: y+7 to y+25 (18px tall, adjusted for taller box)
-    tft->drawFastVLine(cursorX, y + 8, 18, COLOR_PRIMARY);
+    tft->drawFastVLine(cursorX, boxY + 4, boxH - 8, COLOR_PRIMARY);
+  } else {
+    tft->drawFastVLine(cursorX, boxY + 4, boxH - 8, TFT_DARKGREY);
   }
 }
 
@@ -515,18 +523,19 @@ void SetupScreen::handleWiFiTouch(int x, int y) {
   }
 
   // Check field selection
+  // Touch area = label(13px) + box(28px) = 41px → use +42 for safety
   if (_wifiSSID.length() == 0) {
     // Manual Entry
-    if (handleFieldSelection(y, Layout::FIELD1_Y, Layout::FIELD1_Y + 32,
+    if (handleFieldSelection(y, Layout::FIELD1_Y, Layout::FIELD1_Y + 42,
                              _isEditingSSID, _isEditingPassword) ||
-        handleFieldSelection(y, Layout::FIELD2_Y, Layout::FIELD2_Y + 32,
+        handleFieldSelection(y, Layout::FIELD2_Y, Layout::FIELD2_Y + 42,
                              _isEditingPassword, _isEditingSSID)) {
       drawWiFiSetup(false);
       return;
     }
   } else {
     // Selection Mode
-    if (handleFieldSelection(y, Layout::FIELD1_Y, Layout::FIELD1_Y + 32,
+    if (handleFieldSelection(y, Layout::FIELD1_Y, Layout::FIELD1_Y + 42,
                              _isEditingPassword, _isEditingSSID)) {
       drawWiFiSetup(false);
       return;
@@ -696,9 +705,10 @@ void SetupScreen::handleAccountTouch(int x, int y) {
   // SKIP Button removed for mandatory login
 
   // Check field selection
-  if (handleFieldSelection(y, Layout::FIELD1_Y, Layout::FIELD1_Y + 32,
+  // Touch area = label(13px) + box(28px) = 41px → use +42 for safety
+  if (handleFieldSelection(y, Layout::FIELD1_Y, Layout::FIELD1_Y + 42,
                            _isEditingUsername, _isEditingAccountPassword) ||
-      handleFieldSelection(y, Layout::FIELD2_Y, Layout::FIELD2_Y + 32,
+      handleFieldSelection(y, Layout::FIELD2_Y, Layout::FIELD2_Y + 42,
                            _isEditingAccountPassword, _isEditingUsername)) {
     drawAccountSetup(false);
     return;

@@ -64,7 +64,7 @@ private:
   void handleUpdatePost();
   void handleUpdateUpload();
 
-  // Session Manager
+  void handleRpmPage();
   void handleSessionsPage();
   void handleApiSessions();
   void handleDownload();

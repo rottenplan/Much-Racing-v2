@@ -37,6 +37,9 @@ void WiFiManager::begin() {
   _server.on("/api/live", HTTP_GET,
              std::bind(&WiFiManager::handleApiLive, this));
 
+  // RPM Sensor Page
+  _server.on("/rpm", HTTP_GET, std::bind(&WiFiManager::handleRpmPage, this));
+
   // OTA Update Routes
   _server.on("/update", HTTP_GET,
              std::bind(&WiFiManager::handleUpdateGet, this));
@@ -189,6 +192,8 @@ void WiFiManager::handleUpdateUpload() {
     }
   }
 }
+
+void WiFiManager::handleRpmPage() { _server.send(200, "text/html", RPM_HTML); }
 
 void WiFiManager::handleSessionsPage() {
   _server.send(200, "text/html", SESSIONS_HTML);

@@ -51,9 +51,9 @@ private:
 
   // Layout constants
   struct Layout {
-    static constexpr int FIELD1_Y = 32;
-    static constexpr int FIELD2_Y = 65;
-    static constexpr int KEYBOARD_Y = 100;
+    static constexpr int FIELD1_Y = 30;    // label@30, box@43-71
+    static constexpr int FIELD2_Y = 74;    // label@74, box@87-115
+    static constexpr int KEYBOARD_Y = 118; // starts 3px below box2 bottom
     static constexpr int HEADER_Y = 8;
     static constexpr int BUTTON_Y = 5;
   };

@@ -129,8 +129,8 @@ void GPSManager::begin() {
   // Log Screen
   delay(100);
 
-  // Set Dynamic Model to Airborne < 4g (Index 7) for INSTANT response
-  setDynamicModel(7);
+  // NOTE: Dynamic model set from saved preferences below (line ~268).
+  // Do NOT hardcode here — preferences override is desired.
   delay(100);
 
   // --- ESP-NOW WIRELESS RPM SETUP ---
@@ -337,20 +337,21 @@ void GPSManager::update() {
     uint8_t c = _gpsSerial->read();
     _totalBytesReceived++; // Track total bytes for diagnostic
 
-    // --- DEBUG NMEA to USB Serial Monitor ---
-    // Safely print only NMEA strings to avoid flooding Serial0 with UBX binary
-    static String nmeaDebugBuffer = "";
+    // --- DEBUG NMEA buffer (fixed char array, no String alloc for racing perf)
+    // ---
+    static char nmeaBuf[88];
+    static uint8_t nmeaIdx = 0;
     if (c == '$') {
-      nmeaDebugBuffer = "$";
-    } else if (c == '\n' && nmeaDebugBuffer.startsWith("$")) {
-      // Serial.println(nmeaDebugBuffer);
-      nmeaDebugBuffer = "";
-    } else if (nmeaDebugBuffer.startsWith("$")) {
-      if (c >= 32 && c <= 126) {
-        nmeaDebugBuffer += (char)c;
+      nmeaBuf[0] = '$';
+      nmeaIdx = 1;
+    } else if (c == '\n' && nmeaIdx > 0 && nmeaBuf[0] == '$') {
+      nmeaIdx = 0; // Reset (debug print disabled)
+    } else if (nmeaIdx > 0 && nmeaBuf[0] == '$') {
+      if (c >= 32 && c <= 126 && nmeaIdx < sizeof(nmeaBuf) - 1) {
+        nmeaBuf[nmeaIdx++] = (char)c;
       }
-      if (nmeaDebugBuffer.length() > 85) {
-        nmeaDebugBuffer = ""; // Safety clear
+      if (nmeaIdx >= sizeof(nmeaBuf) - 1) {
+        nmeaIdx = 0; // Safety clear
       }
     }
 
@@ -554,43 +555,17 @@ double GPSManager::getLongitude() {
 }
 
 float GPSManager::getSpeedKmph() {
-  // Check if we have a high-quality 3D/GNSS+DR fix and enough satellites
-  // This helps prevent "ghost" speed readings when the device is stationary or
-  // signal is weak
-
-  // DISABLED: Debug logging (impacts performance)
-  // DEBUG: Log every 2 seconds
-  // static unsigned long lastDebug = 0;
-  // if (millis() - lastDebug >= 2000) {
-  //   Serial.print("GPS Speed Debug: Raw=");
-  //   Serial.print(_currentSpeed, 2);
-  //   Serial.print(" km/h, FixType=");
-  //   Serial.print(_fixType);
-  //   Serial.print(", Sats=");
-  //   Serial.print(_satelliteCount);
-  //   Serial.print(", PDOP=");
-  //   Serial.print(_pdop, 2);
-  //   Serial.print(", Filtered=");
-  //
-  //   if (_fixType < 3 || _satelliteCount < GPS_MIN_SATS ||
-  //       _pdop > GPS_MAX_PDOP) {
-  //     Serial.println("REJECTED (Quality)");
-  //     lastDebug = millis();
-  //     return 0.0f;
-  //   }
-  //
-  //   float speed = _currentSpeed;
-  //   if (speed < GPS_SPEED_DEADZONE) {
-  //     Serial.print(speed, 2);
-  //     Serial.println(" (Deadzone)");
-  //   } else {
-  //     Serial.println(speed, 2);
-  //   }
-  //   lastDebug = millis();
-  // }
+  // Racing Quality Gate: require 3D fix, minimum sats, and acceptable PDOP
+  if (_fixType < 3) {
+    return 0.0f; // Reject non-3D fix (no altitude = inaccurate speed)
+  }
 
   if (_satelliteCount < GPS_MIN_SATS) {
-    return 0.0f;
+    return 0.0f; // Not enough satellites
+  }
+
+  if (_pdop > GPS_MAX_PDOP) {
+    return 0.0f; // Position dilution too high → unreliable
   }
 
   // Use UBX parsed speed (already in km/h)
@@ -600,8 +575,6 @@ float GPSManager::getSpeedKmph() {
   if (speed < GPS_SPEED_DEADZONE) {
     return 0.0f;
   }
-
-  return speed;
 
   return speed;
 }

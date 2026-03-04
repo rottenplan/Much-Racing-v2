@@ -44,16 +44,26 @@ void SpeedometerScreen::onHide() { imuManager.requestActivity(false); }
 void SpeedometerScreen::update() {
   // 1. Tombol Kembali
   UIManager::TouchPoint p = _ui->getTouchPoint();
-  // 1. Tombol Kembali (Standardized hit area 100x80)
-  if (p.x != -1 && p.x < 100 && p.y > 240) {
+
+  // Layout constants (must match drawDashboard)
+  const int GRID_TOP = STATUS_BAR_HEIGHT + 4;
+  const int GRID_H = SCREEN_HEIGHT - GRID_TOP - 4;
+  const int GRID_W = 260;
+  const int GAP = 4;
+  const int CELL_W = (GRID_W - GAP) / 2;     // ~128
+  const int CELL_H = (GRID_H - GAP * 2) / 3; // ~96
+
+  // Back button: bottom-left corner, below RPM bar (Y=265+12=277)
+  if (p.x != -1 && p.x < 40 && p.y > 277) {
     _ui->switchScreen(SCREEN_MENU);
     return;
   }
 
-  // 2. Roll Angle Calibration (Double Tap on Card)
-  // Roll card area: startX + cardW + gap, bottomCardY
-  // Approx bounds: [170, 300] x [195, 245]
-  if (p.x >= 170 && p.x <= 300 && p.y >= 195 && p.y <= 245) {
+  // 2. G-Force Calibration (Double Tap on LEAN card - row 2, col 0)
+  int leanCardX = 5;
+  int leanCardY = GRID_TOP + 2 * (CELL_H + GAP);
+  if (p.x >= leanCardX && p.x <= leanCardX + CELL_W && p.y >= leanCardY &&
+      p.y <= leanCardY + CELL_H) {
     unsigned long now = millis();
     if (now - _lastTapTime < 300) { // Double tap within 300ms
       _tapCount++;
@@ -64,8 +74,28 @@ void SpeedometerScreen::update() {
         _maxSpeed = 0;    // Reset peak stats
         _maxRPM = 0;
         _tapCount = 0;
-        _ui->showToast("G-Force Calibrated", 1000);
-        Serial.println("Roll Calibration Triggered!");
+        // Custom toast ABOVE speed number (right panel area)
+        {
+          TFT_eSPI *tft = _ui->getTft();
+          int toastW = 170;
+          int toastH = 36;
+          int toastX = 298 + (177 - toastW) / 2; // center in right panel
+          int toastY = GRID_TOP + 5; // just below status bar, above speed
+          uint16_t cardColor = 0x18E3;
+          tft->fillRoundRect(toastX, toastY, toastW, toastH, 8, cardColor);
+          tft->drawRoundRect(toastX, toastY, toastW, toastH, 8, TFT_SILVER);
+          tft->setTextColor(TFT_WHITE, cardColor);
+          tft->setFreeFont(&Org_01);
+          tft->setTextSize(1);
+          tft->setTextDatum(MC_DATUM);
+          tft->drawString("G-Force Calibrated", toastX + toastW / 2,
+                          toastY + toastH / 2 - 2);
+          delay(1000);
+          tft->fillRect(toastX, toastY, toastW, toastH,
+                        _ui->getBackgroundColor());
+          tft->setFreeFont(NULL);
+          drawDashboard(true); // restore screen
+        }
       }
     } else {
       _tapCount = 1;
@@ -155,171 +185,153 @@ void drawSegment(TFT_eSPI *tft, int x, int y, int w, int h, int angleOffset,
                     color);
 }
 
-// --- LAYOUT CORRECTIONS ---
+// --- LAYOUT: 3x2 Grid (Left) + Big Speed (Right) + RPM Bar (Bottom Original)
+// ---
 void SpeedometerScreen::drawDashboard(bool force) {
   TFT_eSPI *tft = _ui->getTft();
 
-  // --- THEME COLORS ---
   uint16_t colPrimary = COLOR_PRIMARY;
   uint16_t colText = _ui->getTextColor();
   uint16_t colBg = _ui->getBackgroundColor();
-  uint16_t colCardBorder = TFT_DARKGREY;
+  uint16_t colBorder = TFT_DARKGREY;
 
-  // Layout Constants (Optimized for 480x320)
-  int cardY = 30; // Slightly lower for better breathing room
-  int cardH = 50;
-  int cardW = 130;
-  int gap = 15;
-  int startX = 25;
-  int bottomCardY = 195; // Moved up from 210 to give more space at bottom
+  // === RPM bar: ORIGINAL fixed position ===
+  const int RPM_BAR_Y = 265;
+  const int RPM_BAR_H = 12;
+  const int RPM_BAR_W = 400;
+  const int RPM_BAR_X = (SCREEN_WIDTH - RPM_BAR_W) / 2;
 
-  // Y Positions
-  int valY = cardY + 30;
-  int bottomValY = valY + (bottomCardY - cardY);
-  int speedY = 130; // Centered Speed more vertically
-  int unitY = speedY + 50;
+  // === Grid area: status bar down to just above RPM bar ===
+  const int MARGIN = 5;
+  const int GRID_TOP = STATUS_BAR_HEIGHT + 4;
+  const int GRID_BOT = RPM_BAR_Y - 5;     // 5px gap above bar
+  const int GRID_H = GRID_BOT - GRID_TOP; // ~240px
+  const int GAP = 4;
+  const int ROW_COUNT = 3;
+  const int COL_COUNT = 2;
+  const int GRID_W = 290; // wider boxes
+  const int CELL_W = (GRID_W - GAP) / COL_COUNT;
+  const int CELL_H = (GRID_H - GAP * 2) / ROW_COUNT;
+
+  const int RIGHT_X = GRID_W + GAP * 2;
+  const int RIGHT_W = SCREEN_WIDTH - RIGHT_X - MARGIN;
+
+  int colX[2] = {MARGIN, MARGIN + CELL_W + GAP};
+  const char *labels[6] = {"MAX RPM", "MAX SPD", "SATS",
+                           "DIST",    "LEAN",    "LAT-G"};
 
   if (force) {
-    // Clear Content - Redundant
-    // _ui->drawCarbonBackground(0, STATUS_BAR_HEIGHT, SCREEN_WIDTH,
-    //                           SCREEN_HEIGHT - STATUS_BAR_HEIGHT);
     _ui->drawStatusBar(true);
 
-    // --- TOP DATA CARDS ---
-    tft->drawRoundRect(startX, cardY, cardW, cardH, 6, colCardBorder);
-    tft->drawRoundRect(startX + cardW + gap, cardY, cardW, cardH, 6,
-                       colCardBorder);
-    tft->drawRoundRect(startX + (cardW + gap) * 2, cardY, cardW, cardH, 6,
-                       colCardBorder);
+    // 6 card outlines
+    for (int row = 0; row < ROW_COUNT; row++) {
+      int cy = GRID_TOP + row * (CELL_H + GAP);
+      for (int col = 0; col < COL_COUNT; col++) {
+        int cx = colX[col];
+        tft->drawRoundRect(cx, cy, CELL_W, CELL_H, 5, colBorder);
+        tft->setFreeFont(&Org_01);
+        tft->setTextSize(1);
+        tft->setTextColor(TFT_SILVER, colBg);
+        tft->setTextDatum(TC_DATUM);
+        tft->drawString(labels[row * 2 + col], cx + CELL_W / 2, cy + 4);
+      }
+    }
 
-    // --- BOTTOM DATA CARDS ---
-    tft->drawRoundRect(startX, bottomCardY, cardW, cardH, 6, colCardBorder);
-    tft->drawRoundRect(startX + cardW + gap, bottomCardY, cardW, cardH, 6,
-                       colCardBorder);
-    tft->drawRoundRect(startX + (cardW + gap) * 2, bottomCardY, cardW, cardH, 6,
-                       colCardBorder);
+    // (no divider line between grid and speed panel)
 
-    // --- LABELS (Inside Cards, Top) ---
-    tft->setFreeFont(&Org_01);
-    tft->setTextSize(1);
-    tft->setTextColor(TFT_SILVER, colBg);
-    tft->setTextDatum(TC_DATUM);
-
-    int labelY = cardY + 4;
-    int bottomLabelY = bottomCardY + 4;
-
-    // Top Labels
-    tft->drawString("MAX RPM", startX + (cardW / 2), labelY);
-    tft->drawString("MAX SPEED", startX + cardW + gap + (cardW / 2), labelY);
-    tft->drawString("SATELLITES", startX + (cardW + gap) * 2 + (cardW / 2),
-                    labelY);
-
-    // Bottom Labels
-    tft->drawString("DISTANCE", startX + (cardW / 2), bottomLabelY);
-    tft->drawString("LEAN ANGLE", startX + cardW + gap + (cardW / 2),
-                    bottomLabelY);
-    tft->drawString("LAT G-FORCE", startX + (cardW + gap) * 2 + (cardW / 2),
-                    bottomLabelY);
-
-    // --- UNIT ---
-    tft->setTextFont(2);
+    // km/h unit label
+    tft->setFreeFont(NULL);
+    tft->setTextFont(4); // bigger km/h label
     tft->setTextSize(1);
     tft->setTextColor(colPrimary, colBg);
-    tft->drawCentreString("km/h", SCREEN_WIDTH / 2, unitY, 1);
+    tft->setTextDatum(TC_DATUM);
+    tft->drawString(_lastUnits ? "mph" : "km/h", RIGHT_X + RIGHT_W / 2,
+                    GRID_TOP + GRID_H / 2 + 58);
 
-    // --- RPM BAR OUTLINE ---
-    int rpmY = 265; // Moved up from 290
-    int rpmH = 12;
-    int rpmW = 400;
-    int rpmX = (SCREEN_WIDTH - rpmW) / 2;
-
-    tft->drawRect(rpmX - 1, rpmY - 1, rpmW + 2, rpmH + 2, TFT_DARKGREY);
+    // RPM bar outline (original position, full width)
+    tft->setFreeFont(NULL);
+    tft->drawRect(RPM_BAR_X - 1, RPM_BAR_Y - 1, RPM_BAR_W + 2, RPM_BAR_H + 2,
+                  colBorder);
+    tft->setTextFont(1);
     tft->setTextDatum(MR_DATUM);
-    tft->drawString("RPM", rpmX - 10, rpmY + 6);
+    tft->setTextColor(TFT_SILVER, colBg);
+    tft->drawString("RPM", RPM_BAR_X - 4, RPM_BAR_Y + RPM_BAR_H / 2);
 
-    // --- BACK BUTTON (Standardized Triangle) ---
-    tft->fillTriangle(15, SCREEN_HEIGHT - 30, 30, SCREEN_HEIGHT - 40, 30,
-                      SCREEN_HEIGHT - 20, TFT_BLUE);
-    tft->setFreeFont(NULL); // Reset font
+    // Back button — BELOW rpm bar, clear of grid
+    tft->fillTriangle(10, RPM_BAR_Y + RPM_BAR_H + 24, 22,
+                      RPM_BAR_Y + RPM_BAR_H + 14, 22,
+                      RPM_BAR_Y + RPM_BAR_H + 34, TFT_BLUE);
+
+    tft->setFreeFont(NULL);
   }
 
-  // --- DYNAMIC UPDATES ---
-  char buf[32];
-
-  tft->setTextDatum(MC_DATUM);
-  tft->setTextColor(colText, colBg);
+  // === DYNAMIC: Card values ===
+  tft->setFreeFont(NULL);
   tft->setTextFont(4);
-  tft->setTextSize(1);
-  int padW = cardW - 10;
-
-  // 1. UPDATE TOP CARDS
-  tft->setTextPadding(padW);
-
-  // Max RPM
-  sprintf(buf, "%d", _maxRPM);
-  tft->drawString(buf, startX + (cardW / 2), valY);
-
-  // Max Speed
-  sprintf(buf, "%.0f", _maxSpeed);
-  tft->drawString(buf, startX + cardW + gap + (cardW / 2), valY);
-
-  // Sats
-  sprintf(buf, "%d", _lastSats);
-  tft->drawString(buf, startX + (cardW + gap) * 2 + (cardW / 2), valY);
-
-  // 2. UPDATE BOTTOM CARDS
-  // Distance
-  sprintf(buf, "%.1f", _lastTrip);
-  tft->drawString(buf, startX + (cardW / 2), bottomValY);
-
-  // Lean
-  sprintf(buf, "%.0f*", abs(_lastRoll));
-  tft->drawString(buf, startX + cardW + gap + (cardW / 2), bottomValY);
-
-  // Max Lean Left/Right (Smaller)
-  tft->setTextFont(1);
-  tft->setTextSize(1);
-  tft->setTextColor(TFT_SILVER, colBg);
-
-  tft->setTextFont(4);
-  tft->setTextSize(1);
+  tft->setTextSize(1);         // ~1.5x approx: 26px (max font4 size1)
+  tft->setTextDatum(MC_DATUM); // centered vertically in cell
   tft->setTextColor(colText, colBg);
 
-  // Lat G
-  sprintf(buf, "%.2fG", _lastAccY);
-  tft->drawString(buf, startX + (cardW + gap) * 2 + (cardW / 2), bottomValY);
+  char buf[24];
+  struct {
+    int col;
+    int row;
+    const char *fmt;
+    float val;
+  } cells[6] = {
+      {0, 0, "%d", (float)_maxRPM},   {1, 0, "%.0f", _maxSpeed},
+      {0, 1, "%d", (float)_lastSats}, {1, 1, "%.1f", _lastTrip},
+      {0, 2, "%.0f", abs(_lastRoll)}, {1, 2, "%.2fG", _lastAccY},
+  };
 
+  for (int i = 0; i < 6; i++) {
+    int cx = colX[cells[i].col];
+    int cy = GRID_TOP + cells[i].row * (CELL_H + GAP);
+    int valX = cx + CELL_W / 2;
+    int valY = cy + CELL_H / 2 + 8; // center, shifted down to clear top label
+    tft->setTextPadding(CELL_W - 8);
+    if (i == 0 || i == 2)
+      sprintf(buf, cells[i].fmt, (int)cells[i].val);
+    else
+      sprintf(buf, cells[i].fmt, cells[i].val);
+    tft->drawString(buf, valX, valY);
+  }
   tft->setTextPadding(0);
 
-  // 3. MAIN SPEED
-  tft->setTextFont(7); // 7-Segment
-  tft->setTextSize(2);
+  // === DYNAMIC: Big Speed ===
+  int speedCenterX = RIGHT_X + RIGHT_W / 2;
+  int speedCenterY = GRID_TOP + GRID_H / 2 - 10;
+
+  tft->setTextFont(7); // 7-segment style font (original)
+  // Auto-size: 3+ digits -> size 1 to prevent overlap with grid
+  if (_lastSpeed >= 100)
+    tft->setTextSize(1);
+  else
+    tft->setTextSize(2);
   tft->setTextColor(colPrimary, colBg);
   tft->setTextDatum(MC_DATUM);
-  tft->setTextPadding(SCREEN_WIDTH);
+  tft->setTextPadding(RIGHT_W);
   sprintf(buf, "%.0f", _lastSpeed);
-  tft->drawString(buf, SCREEN_WIDTH / 2, speedY);
+  tft->drawString(buf, speedCenterX, speedCenterY);
   tft->setTextPadding(0);
 
-  // 4. RPM BAR
-  int rpmY = 265; // MATCH OUTLINE
-  int rpmH = 12;
-  int rpmW = 400;
-  int rpmX = (SCREEN_WIDTH - rpmW) / 2;
-
-  int fillW = map(constrain(_lastRPM, 0, 12000), 0, 12000, 0, rpmW);
+  // === DYNAMIC: RPM Bar (original full-width) ===
+  int fillW = map(constrain(_lastRPM, 0, 12000), 0, 12000, 0, RPM_BAR_W);
   if (fillW > 0)
-    tft->fillRect(rpmX, rpmY, fillW, rpmH, colPrimary);
-  if (fillW < rpmW)
-    tft->fillRect(rpmX + fillW, rpmY, rpmW - fillW, rpmH, colBg);
+    tft->fillRect(RPM_BAR_X, RPM_BAR_Y, fillW, RPM_BAR_H, colPrimary);
+  if (fillW < RPM_BAR_W)
+    tft->fillRect(RPM_BAR_X + fillW, RPM_BAR_Y, RPM_BAR_W - fillW, RPM_BAR_H,
+                  colBg);
 
+  // RPM number to the right
   tft->setTextFont(2);
   tft->setTextSize(1);
   tft->setTextColor(colText, colBg);
   tft->setTextDatum(ML_DATUM);
   tft->setTextPadding(60);
   sprintf(buf, "%d", _lastRPM);
-  tft->drawString(buf, rpmX + rpmW + 10, rpmY + 6);
+  tft->drawString(buf, RPM_BAR_X + RPM_BAR_W + 6, RPM_BAR_Y + RPM_BAR_H / 2);
+  tft->setTextPadding(0);
 
   // --- FONT SAFETY ---
   tft->setTextSize(1);

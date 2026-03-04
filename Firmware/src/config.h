@@ -64,8 +64,7 @@ extern SemaphoreHandle_t i2cMutex;
 #define PREDICTIVE_DELTA_LIMIT 5.0 // Max delta seconds for bar display
 #define GPS_SPEED_DEADZONE 2.0     // km/h threshold to ignore GPS noise
 #define GPS_MIN_SATS                                                           \
-  3 // Minimum satellites for a reliable speed (Reduced to 3 for indoor/urban
-    // use)
+  4 // Minimum satellites for reliable 3D fix (4 required for racing accuracy)
 #define GPS_MAX_PDOP 5.0 // Maximum Dilution of Precision (lower is better)
 #define DEFAULT_BEACON_WIDTH 50 // Default Beacon Width in meters
 // #define PIN_LIGHT_SENSOR 34

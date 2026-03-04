@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>RPM Sensor - MuchRacing</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0a; color: #eee; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { background: linear-gradient(135deg, #111 0%, #1a1a2e 100%); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #04DF00; }
+    .header h1 { font-size: 18px; color: #04DF00; letter-spacing: 1px; }
+    .header .status { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: #222; }
+    .nav { background: #111; padding: 8px 20px; display: flex; gap: 10px; border-bottom: 1px solid #222; }
+    .nav a { color: #888; text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 6px; transition: all 0.2s; }
+    .nav a:hover, .nav a.active { background: #04DF00; color: #000; font-weight: bold; }
+    .content { padding: 20px; flex-grow: 1; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+    .rpm-display { background: linear-gradient(145deg, #0d1117 0%, #161b22 100%); border: 2px solid #04DF00; border-radius: 16px; padding: 20px; text-align: center; width: 100%; max-width: 400px; }
+    .rpm-value { font-size: 64px; color: #04DF00; font-family: 'Courier New', monospace; font-weight: bold; line-height: 1; margin: 10px 0; }
+    .rpm-label { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 3px; }
+    .rpm-bar { width: 100%; height: 16px; background: #222; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+    .rpm-bar-fill { height: 100%; background: linear-gradient(90deg, #04DF00, #FFD700, #FF4444); width: 0%; transition: width 0.2s; border-radius: 8px; }
+    
+    .graph-container { background: #111; border: 1px solid #333; border-radius: 12px; padding: 12px; width: 100%; max-width: 400px; }
+    .graph-title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; text-align: left; display: flex; justify-content: space-between; }
+    canvas { width: 100%; height: 120px; background: #0a0a0a; border-radius: 6px; border: 1px solid #222; display: block; }
+    
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 400px; }
+    .info-card { background: linear-gradient(145deg, #1a1a1a, #222); border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #333; }
+    .info-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .info-val { font-size: 18px; font-weight: bold; color: #fff; }
+    .footer { background: #111; padding: 10px 20px; text-align: center; font-size: 11px; color: #444; border-top: 1px solid #222; margin-top: auto; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>MUCH RACING</h1>
+    <div class="status" id="conn" style="color:yellow;">Connecting...</div>
+  </div>
+  <div class="nav">
+    <a href="/">Dashboard</a>
+    <a href="/rpm" class="active">RPM Sensor</a>
+    <a href="/sessions">Sessions</a>
+    <a href="/update">Firmware</a>
+  </div>
+
+  <div class="content">
+    <div class="rpm-display">
+      <div class="rpm-label">Engine RPM</div>
+      <div class="rpm-value" id="rpm">0</div>
+      <div class="rpm-bar"><div class="rpm-bar-fill" id="rpmBar"></div></div>
+    </div>
+    
+    <div class="graph-container">
+      <div class="graph-title">
+        <span>Live Telemetry</span>
+        <span>
+          <span style="color:#FF4444; font-weight:bold;">&bull; RPM</span> 
+          <span style="color:#00FFFF; font-weight:bold; margin-left:8px;">&bull; SPD</span>
+        </span>
+      </div>
+      <canvas id="graph"></canvas>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-label">Speed</div>
+        <div class="info-val"><span id="speed">0</span> <span style="color:#04DF00;font-size:11px;">km/h</span></div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">Source</div>
+        <div class="info-val" id="source" style="color:#888;">Idle</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">RPM Sensor Monitor &bull; MuchRacing GPS (TEST)</div>
+  
+  <script>
+    const MAX_RPM = 14000;
+    const MAX_SPEED = 150;
+    const histSize = 50;
+    let rpmHist = new Array(histSize).fill(0);
+    let spdHist = new Array(histSize).fill(0);
+    const canvas = document.getElementById('graph');
+    const ctx = canvas.getContext('2d');
+
+    function drawGraph() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const w = canvas.width;
+      const h = canvas.height;
+      
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, w, h);
+      
+      // Grid
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1 * dpr;
+      for(let i=1; i<4; i++) {
+        let y = (h*i)/4;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+      for(let i=1; i<6; i++) {
+        let x = (w*i)/6;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+      
+      let step = w / (histSize - 1);
+      
+      function traceLine(data, color, maxVal) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2 * dpr;
+        ctx.lineJoin = 'round';
+        for(let i=0; i<histSize; i++) {
+          let x = i * step;
+          let y = h - Math.max(0, Math.min((data[i]/maxVal)*h, h));
+          if(i===0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      
+      traceLine(spdHist, '#00FFFF', MAX_SPEED);
+      traceLine(rpmHist, '#FF4444', MAX_RPM);
+    }
+    drawGraph();
+
+    let t = 0;
+    function update() {
+      t += 0.2;
+      let mockRpm = Math.floor((Math.sin(t) + 1) * 6000 + 1000); // 1000 to 13000
+      let mockSpeed = Math.floor((Math.cos(t * 0.5) + 1) * 60 + 10); // 10 to 130
+      let d = { rpm: mockRpm, speed: mockSpeed };
+
+      document.getElementById('conn').innerText = 'Live (MOCK)';
+      document.getElementById('conn').style.color = '#04DF00';
+      document.getElementById('rpm').innerText = d.rpm;
+      document.getElementById('speed').innerText = Math.round(d.speed);
+      
+      var pct = Math.min((d.rpm / MAX_RPM) * 100, 100);
+      document.getElementById('rpmBar').style.width = pct + '%';
+      
+      var srcEl = document.getElementById('source');
+      if (d.rpm > 0) {
+        srcEl.innerText = 'Active';
+        srcEl.style.color = '#04DF00';
+      } else {
+        srcEl.innerText = 'Idle';
+        srcEl.style.color = '#888';
+      }
+
+      // Update Graph
+      rpmHist.push(d.rpm);
+      rpmHist.shift();
+      spdHist.push(d.speed);
+      spdHist.shift();
+      drawGraph();
+    }
+    setInterval(update, 200);
+    window.addEventListener('resize', drawGraph);
+  </script>
+</body>
+</html>
