@@ -9,8 +9,6 @@
 extern SessionManager sessionManager;
 
 SyncManager::SyncManager() : _isBusy(false) {
-  loadCredentialCache();
-
   // Create queue for background telemetry
   _telemetryQueue = xQueueCreate(10, sizeof(TelemetryData *));
 

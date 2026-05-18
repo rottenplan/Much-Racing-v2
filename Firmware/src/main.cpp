@@ -13,6 +13,7 @@
 #include "ui/screens/SplashScreen.h" // Added include
 #include <Arduino.h>
 #include <nvs_flash.h>
+#include <Preferences.h>
 
 // Objek Perangkat Keras
 TFT_eSPI tft = TFT_eSPI();
@@ -49,6 +50,16 @@ void setup() {
     nvs_flash_init();
   }
   Serial.println(F("SYSTEM: NVS Initialized"));
+
+  {
+    Preferences prefs;
+    prefs.begin("laptimer", false);
+    prefs.end();
+    prefs.begin("muchrace", false);
+    prefs.end();
+    prefs.begin("sync", false);
+    prefs.end();
+  }
 
   // Now NVS is ready, allow SyncManager to load its credential cache
   syncManager.loadCredentialCache();

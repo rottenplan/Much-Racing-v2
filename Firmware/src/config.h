@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define FIRMWARE_VERSION "v4.1.2"
+#define FIRMWARE_VERSION "v4.1.3"
 
 // Global I2C Mutex for multi-core thread safety
 extern SemaphoreHandle_t i2cMutex;
@@ -23,7 +23,7 @@ extern SemaphoreHandle_t i2cMutex;
 // Touch Screen (GT911 via I2C)
 #define TOUCH_SDA 33
 #define TOUCH_SCL 32
-#define TOUCH_INT -1 // Set to -1 to poll. GPIO 21 is used by GPS TX.
+#define TOUCH_INT 26
 #define TOUCH_RST 25
 
 // Display Reset (Matches platformio.ini)

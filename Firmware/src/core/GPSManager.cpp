@@ -254,12 +254,12 @@ void GPSManager::begin() {
 
   // 2. GNSS Mode
   // Default to 1 (GPS+GLO+SBAS) if not set
-  uint8_t storedMode = prefs.getInt("gnss_mode", 1);
+  uint8_t storedMode = prefs.getInt("gnss_mode", 7);
   setGnssMode(storedMode);
 
   // 3. SBAS Config
   // Default to 0 (MSAS) - Use 0 because we mapped MSAS to 0 in UI
-  uint8_t storedSBAS = prefs.getInt("gnss_sbas", 0);
+  uint8_t storedSBAS = prefs.getInt("gnss_sbas", 5);
   setSBASConfig(storedSBAS);
 
   // 4. Dynamic Model

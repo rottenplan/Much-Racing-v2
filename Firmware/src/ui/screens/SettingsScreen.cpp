@@ -168,7 +168,7 @@ void SettingsScreen::loadSettings() {
         "GPS+BEI+SBAS(12Hz)", // 6
         "GPS+GLO (16Hz)"      // 7
     };
-    mode.currentOptionIdx = _prefs.getInt("gnss_mode", 1);
+    mode.currentOptionIdx = _prefs.getInt("gnss_mode", 7);
     _settings.push_back(mode);
 
     // 2. GNSS Coordinate Projection
@@ -213,7 +213,7 @@ void SettingsScreen::loadSettings() {
         "KOREA (KASS)",   // 4
         "DISABLE"         // 5
     };
-    sbas.currentOptionIdx = _prefs.getInt("gnss_sbas", 0); // Default 0 (MSAS)
+    sbas.currentOptionIdx = _prefs.getInt("gnss_sbas", 5);
     _settings.push_back(sbas);
 
     // 6. GNSS RX PIN

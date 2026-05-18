@@ -909,7 +909,22 @@ std::vector<GeoPoint> SessionManager::getLapPoints(String filename,
     return points;
   }
 
+  const size_t maxReplayPoints = 1500;
+  uint32_t rawCount = 0;
+  uint32_t stride = 1;
   int pointsFound = 0;
+
+  auto maybeDecimate = [&]() {
+    if (points.size() <= maxReplayPoints)
+      return;
+    size_t write = 0;
+    for (size_t read = 0; read < points.size(); read += 2) {
+      points[write++] = points[read];
+    }
+    points.resize(write);
+    stride *= 2;
+    pointsFound = (int)points.size();
+  };
 
   uint32_t magic = 0;
   if (f.available() >= 4)
@@ -944,8 +959,12 @@ std::vector<GeoPoint> SessionManager::getLapPoints(String filename,
             gp.gX = lp.accX / 100.0f;
             gp.gY = lp.accY / 100.0f;
             gp.lean = lp.tilt / 10.0f;
-            points.push_back(gp);
-            pointsFound++;
+            rawCount++;
+            if ((rawCount % stride) == 0) {
+              points.push_back(gp);
+              pointsFound++;
+              maybeDecimate();
+            }
           }
         } else
           f.read();
@@ -1043,8 +1062,12 @@ std::vector<GeoPoint> SessionManager::getLapPoints(String filename,
                         .toFloat();
           if (p[9] > 0)
             gp.lean = line.substring(p[9] + 1).toFloat();
-          points.push_back(gp);
-          pointsFound++;
+          rawCount++;
+          if ((rawCount % stride) == 0) {
+            points.push_back(gp);
+            pointsFound++;
+            maybeDecimate();
+          }
         }
       }
     }

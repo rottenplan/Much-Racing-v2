@@ -88,11 +88,14 @@ void HistoryScreen::onHide() {
 void HistoryScreen::update() {
   // --- REPLAY ANIMATION TICK ---
   if (_currentMode == MODE_VIEW_DATA) {
-    bool isDrag = (_historyList[_lastTapIdx].type == "DRAG");
-    if (_viewPage == 3 && !isDrag) {
-      if (millis() - _lastReplayTick > 30) { // ~33 FPS
-        _lastReplayTick = millis();
-        drawLapReplay(_currentAnalysis);
+    if (_viewPage == 3 && _lastTapIdx >= 0 &&
+        _lastTapIdx < (int)_historyList.size()) {
+      bool isDrag = (_historyList[_lastTapIdx].type == "DRAG");
+      if (!isDrag) {
+        if (millis() - _lastReplayTick > 30) { // ~33 FPS
+          _lastReplayTick = millis();
+          drawLapReplay(_currentAnalysis);
+        }
       }
     }
   }
@@ -1283,6 +1286,10 @@ void HistoryScreen::drawConfirmDelete() {
 void HistoryScreen::drawLapReplay(
     const SessionManager::SessionAnalysis &analysis) {
   TFT_eSPI *tft = _ui->getTft();
+  if (_lastTapIdx < 0 || _lastTapIdx >= (int)_historyList.size())
+    return;
+  if (analysis.lapTimes.empty())
+    return;
   String currentFile = _historyList[_lastTapIdx].filename;
 
   // --- Pro Replay Design Layout (Shifted for Status Bar) ---
@@ -1365,6 +1372,8 @@ void HistoryScreen::drawLapReplay(
       tft->drawLine(x1 - 1, y1, x2 - 1, y2, TFT_SILVER);
       tft->drawLine(x1, y1 + 1, x2, y2 + 1, TFT_SILVER);
       tft->drawLine(x1, y1 - 1, x2, y2 - 1, TFT_SILVER);
+      if ((i & 63) == 0)
+        yield();
     }
 
     // Draw Box 1: Lap Info (Left)
@@ -1457,6 +1466,8 @@ void HistoryScreen::drawLapReplay(
       tft->drawLine(rx1 - 1, ry1, rx2 - 1, ry2, TFT_SILVER);
       tft->drawLine(rx1, ry1 + 1, rx2, ry2 + 1, TFT_SILVER);
       tft->drawLine(rx1, ry1 - 1, rx2, ry2 - 1, TFT_SILVER);
+      if ((i & 15) == 0)
+        yield();
     }
   }
 
