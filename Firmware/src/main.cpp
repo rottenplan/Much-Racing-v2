@@ -6,35 +6,36 @@
 #include "core/FeedbackManager.h"
 #include "core/IMUManager.h"
 #include "core/MQTTManager.h"
+#include "core/RouteNavigator.h"
 #include "core/SessionManager.h"
 #include "core/SyncManager.h"
 #include "core/WiFiManager.h"
 #include "ui/UIManager.h"
-#include "ui/screens/SplashScreen.h" // Added include
+#include "ui/screens/SplashScreen.h"
 #include <Arduino.h>
-#include <nvs_flash.h>
+#include <BluetoothSerial.h>
 #include <Preferences.h>
+#include <nvs_flash.h>
 
 // Objek Perangkat Keras
 TFT_eSPI tft = TFT_eSPI();
 TAMC_GT911 touch(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WIDTH,
                  TOUCH_HEIGHT);
-// TouchLib touch(
-//     Wire,
-//     0x00); // Placeholder, menunggu hasil list_dir untuk tahu konstruktor
 UIManager uiManager(&tft);
 GPSManager gpsManager;
 SessionManager sessionManager;
 WiFiManager wifiManager;
 SyncManager syncManager;
-
-// SPIClass touchSpi = SPIClass(HSPI); // Tidak diperlukan untuk I2C
+BluetoothSerial btSerial;
 
 // Global I2C Mutex Definition
 SemaphoreHandle_t i2cMutex = NULL;
 
 // Forward declaration for FreeRTOS IMU task
 void imuTask(void *parameter);
+
+// Buffer untuk data Bluetooth dari HP
+String btBuffer = "";
 
 void setup() {
   Serial.begin(115200);
@@ -70,8 +71,7 @@ void setup() {
   pinMode(PIN_TFT_BL, OUTPUT);
   digitalWrite(PIN_TFT_BL, LOW);
 
-  // GT911 Touch Reset (using RST pin only - NOT pin 21 which is GPS TX AND IMU
-  // SDA)
+  // GT911 Touch Reset
   pinMode(TOUCH_RST, OUTPUT);
   digitalWrite(TOUCH_RST, LOW);
   delay(10);
@@ -80,15 +80,15 @@ void setup() {
 
   // Inisialisasi UI (TFT)
   tft.init();
-  tft.setRotation(1); // 0=Potret, 1=Lanskap. Periksa pemasangan Anda!
+  tft.setRotation(1);
 
   // Anti-Glitch: Ensure Backlight is OFF and Screen is Black
   digitalWrite(PIN_TFT_BL, LOW);
   tft.fillScreen(TFT_BLACK);
 
   // Inisialisasi PWM Lampu Latar (Start 0% Duty)
-  ledcSetup(0, 5000, 8); // Saluran 0, 5kHz, 8-bit
-  ledcWrite(0, 0);       // Pastikan duty cycle nol SEBELUM pasang pin
+  ledcSetup(0, 5000, 8);
+  ledcWrite(0, 0);
   ledcAttachPin(PIN_TFT_BL, 0);
 
   // Re-clear screen just in case init/rotation caused garbage
@@ -97,7 +97,7 @@ void setup() {
   // Inisialisasi I2C Shared Bus (Touch & IMU)
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
   Wire.setClock(100000);
-  Wire.setTimeOut(50); // Keep persistent timeout
+  Wire.setTimeOut(50);
 
   // Initialize UI Manager Early
   uiManager.begin();
@@ -109,12 +109,10 @@ void setup() {
   touch.begin();
   uiManager.setTouch(&touch);
 
-  Wire.setClock(100000); // Re-assert in case touch.begin() reset it
-  Wire.setTimeOut(
-      20); // 20ms timeout is required to read 42 bytes of IMU FIFO at 100kHz
+  Wire.setClock(100000);
+  Wire.setTimeOut(20);
 
-  // Initialize IMU AFTER touch.begin() - Wire1 (SDA=21) will overwrite touch
-  // lib's claim on pin 21
+  // Initialize IMU AFTER touch.begin()
   if (splash)
     splash->setLoadingStatus("IMU Starting...");
   imuManager.begin();
@@ -128,6 +126,9 @@ void setup() {
     splash->setLoadingStatus("Session Manager...");
   sessionManager.begin();
 
+  // Muat rute navigasi offline dari SD card (jika ada /route.gpx)
+  routeNavigator.loadRoute("/route.gpx");
+
   if (splash)
     splash->setLoadingStatus("Power System...");
   BatteryManager::getInstance().begin();
@@ -137,20 +138,26 @@ void setup() {
 
   if (splash)
     splash->setLoadingStatus("WiFi Starting...");
-  wifiManager.begin(); // Setup AP and Server
+  wifiManager.begin();
+
+  // Initialize Bluetooth for HP navigation input
+  if (splash)
+    splash->setLoadingStatus("Bluetooth...");
+  btSerial.begin("MuchRacing-Nav");
+  Serial.println(
+      "Bluetooth: MuchRacing-Nav siap (pair & kirim POLY:<polyline>)");
 
   // Initialize Feedback (LEDs/Buzzer)
   if (splash)
     splash->setLoadingStatus("System Ready!");
   FeedbackManager::getInstance().begin();
-  FeedbackManager::getInstance().testSequence(); // Visual/Audio confirm
+  FeedbackManager::getInstance().testSequence();
 
   if (splash)
     splash->setLoadingStatus("MQTT Init...");
   mqttManager.begin();
 
   // --- LOW BATTERY SAFETY CHECK (20%) ---
-  // Wait a moment for voltage to stabilize after power-on
   for (int i = 0; i < 5; i++) {
     BatteryManager::getInstance().update();
     delay(100);
@@ -173,30 +180,27 @@ void setup() {
     FeedbackManager::getInstance().beep(500);
     delay(3000);
 
-    // Shut down (Deep Sleep)
-    ledcWrite(0, 0); // Backlight Off
+    ledcWrite(0, 0);
     esp_deep_sleep_start();
   }
 
-  // Start IMU update on Core 0 (isolate I2C blocking from main loop on Core 1)
+  // Start IMU update on Core 0
   xTaskCreatePinnedToCore(imuTask, "IMU_Task", 4096, NULL, 1, NULL, 0);
-
-  // Serial.println("System Ready"); // DISABLED: Serial used for GPS
 }
 
-// FreeRTOS Task: IMU Update on Core 0 (isolate I2C blocking from main loop)
+// FreeRTOS Task: IMU Update on Core 0
 void imuTask(void *parameter) {
   for (;;) {
     imuManager.update();
-    vTaskDelay(pdMS_TO_TICKS(10)); // ~100Hz
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
 void loop() {
-  // GPS updates as fast as possible for high-frequency tracking
+  // GPS updates as fast as possible
   gpsManager.update();
 
-  // Throttle UI and Touch to ~100Hz (10ms) to prevent I2C/SPI contention
+  // Throttle UI and Touch to ~100Hz
   static unsigned long lastUiUpdate = 0;
   if (millis() - lastUiUpdate >= 10) {
     uiManager.update();
@@ -209,18 +213,44 @@ void loop() {
   static unsigned long maxLoopTime = 0;
   unsigned long loopStart = micros();
 
-  // Perform loop tasks...
   unsigned long now = millis();
 
-  // Less critical background tasks can run at a fixed rate (e.g., 50Hz / 20ms)
+  // Less critical background tasks at 50Hz
   static unsigned long lastBackgroundTask = 0;
   if (now - lastBackgroundTask >= 20) {
     lastBackgroundTask = now;
-    // imuManager.update() moved to FreeRTOS task (Core 0) to avoid I2C blocking
     BatteryManager::getInstance().update();
     wifiManager.update();
     mqttManager.update();
     FeedbackManager::getInstance().update();
+  }
+
+  // --- BLUETOOTH NAVIGATION HANDLER ---
+  // Terima polyline dari HP via Bluetooth
+  while (btSerial.available()) {
+    char c = btSerial.read();
+    if (c == '\n' || c == '\r') {
+      if (btBuffer.length() > 0) {
+        if (btBuffer.startsWith("POLY:")) {
+          String polyline = btBuffer.substring(5);
+          routeNavigator.decodePolyline(polyline);
+          btSerial.println("OK: " + String(routeNavigator.getPointCount()) +
+                           " titik");
+        } else if (btBuffer.startsWith("STATUS")) {
+          btSerial.println(
+              "ACTIVE:" + String(routeNavigator.isActive() ? 1 : 0) +
+              " POINTS:" + String(routeNavigator.getPointCount()) +
+              " KM:" + String(routeNavigator.getRemainingKm(), 1));
+        } else {
+          btSerial.println("ERR: format salah. Gunakan POLY:<polyline>");
+        }
+        btBuffer = "";
+      }
+    } else {
+      btBuffer += c;
+      if (btBuffer.length() > 2000)
+        btBuffer = "";
+    }
   }
 
   // Update Loop Stats
@@ -229,7 +259,6 @@ void loop() {
   if (loopDuration > maxLoopTime)
     maxLoopTime = loopDuration;
 
-  // Print Stats every 1 second
   if (now - lastStats >= 1000) {
     DEBUG_PRINTF("STATS: FPS=%d | Heap=%d B | MinHeap=%d B | MaxLoop=%lu us\n",
                  loopCount, esp_get_free_heap_size(),

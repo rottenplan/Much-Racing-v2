@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="MuchRacing" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Contoh Rute Test Jakarta (Monas)</name>
+    <trkseg>
+      <trkpt lat="-6.175400" lon="106.827200"></trkpt>
+      <trkpt lat="-6.175000" lon="106.827000"></trkpt>
+      <trkpt lat="-6.174500" lon="106.826800"></trkpt>
+      <trkpt lat="-6.174000" lon="106.826700"></trkpt>
+      <trkpt lat="-6.173500" lon="106.826700"></trkpt>
+      <trkpt lat="-6.173000" lon="106.826800"></trkpt>
+      <trkpt lat="-6.172500" lon="106.827000"></trkpt>
+      <trkpt lat="-6.172000" lon="106.827300"></trkpt>
+      <trkpt lat="-6.171600" lon="106.827700"></trkpt>
+      <trkpt lat="-6.171300" lon="106.828200"></trkpt>
+      <trkpt lat="-6.171100" lon="106.828800"></trkpt>
+      <trkpt lat="-6.171000" lon="106.829400"></trkpt>
+      <trkpt lat="-6.171000" lon="106.830000"></trkpt>
+      <trkpt lat="-6.171100" lon="106.830600"></trkpt>
+      <trkpt lat="-6.171400" lon="106.831100"></trkpt>
+      <trkpt lat="-6.171800" lon="106.831500"></trkpt>
+      <trkpt lat="-6.172300" lon="106.831800"></trkpt>
+      <trkpt lat="-6.172800" lon="106.831900"></trkpt>
+      <trkpt lat="-6.173300" lon="106.831900"></trkpt>
+      <trkpt lat="-6.173800" lon="106.831700"></trkpt>
+      <trkpt lat="-6.174200" lon="106.831400"></trkpt>
+      <trkpt lat="-6.174500" lon="106.831000"></trkpt>
+      <trkpt lat="-6.174700" lon="106.830500"></trkpt>
+      <trkpt lat="-6.174800" lon="106.829900"></trkpt>
+      <trkpt lat="-6.174800" lon="106.829300"></trkpt>
+      <trkpt lat="-6.174700" lon="106.828700"></trkpt>
+      <trkpt lat="-6.174400" lon="106.828200"></trkpt>
+      <trkpt lat="-6.174000" lon="106.827800"></trkpt>
+      <trkpt lat="-6.175400" lon="106.827200"></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

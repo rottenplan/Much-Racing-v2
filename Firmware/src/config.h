@@ -75,6 +75,19 @@ extern SemaphoreHandle_t i2cMutex;
   2.44 // Reverted from 3.30 which caused 5.6V readings
 
 // ==========================================
+// VOLTMETER MOTOR (12V) — Pembagi Tegangan
+// ==========================================
+// WIRING:
+//   Aki 12V (+) → Resistor R1 (atas) → titik tengah → GPIO36 (ADC1_CH0)
+//   Titik tengah juga tersambung ke Resistor R2 → GND
+//   GPIO36 hanya terima V ≤ ~3.2V; JANGAN sambungkan 12V langsung!
+// R1=33kΩ, R2=5.6kΩ → Faktor = (33000+5600)/5600 = 6.89
+// ≈ 14.2V motor → 2.06V aman; 22V max ≈ 3.19V
+#define PIN_VOLTMETER 36
+#define VOLTMETER_RATIO 6.89f // (R1+R2)/R2, sesuaikan dgn resistor Anda
+#define VOLTMETER_SAMPLES 16  // jumlah sampel untuk rata-rata
+
+// ==========================================
 // SYSTEM CONSTANTS
 // ==========================================
 // Landscape Mode
