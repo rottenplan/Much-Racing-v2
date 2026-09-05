@@ -13,22 +13,26 @@ public:
   WiFiManager();
   void begin();
   void update();
-  void setGPS(GPSManager *gps) { _gps = gps; }
+  void setGPS(GPSManager *gps) { _gps = gps; } // Inject GPS
 
+  // Connection Methods
   bool connect(const char *ssid, const char *pass);
-  int scanNetworks();
+  int scanNetworks(); // Returns count of found networks
   String getSSID(int index);
   int getRSSI(int index);
-  void connectTo(int index, const char *pass);
-  bool tryAutoConnect();
+  void connectTo(int index, const char *pass); // Connect by index
+  bool tryAutoConnect();                       // Try with saved credentials
   void disconnect();
 
+  // Persistence
   void saveCredentials(String ssid, String pass);
   void loadCredentials();
 
+  // Status
   bool isConnected();
   String getSSID() { return _ssid; }
 
+  // Toggle
   void setEnabled(bool enabled);
   bool isEnabled() { return _enabled; }
 
@@ -45,27 +49,25 @@ private:
   unsigned long _lastAttemptTime;
   bool _isConnecting;
 
-  WebServer _server;
+  WebServer _server; // Web Server Object
   GPSManager *_gps = nullptr;
 
-  bool _enabled = true;
-  bool _apEnabled = true;
-  bool _liveTelemetryEnabled = true;
+  bool _enabled = true;              // Default ON
+  bool _apEnabled = true;            // Default ON Hotspot
+  bool _liveTelemetryEnabled = true; // Default ON Live Telemetry
 
   bool loadFromSD();
-  void startAP();
+  void startAP(); // Start Hotspot
   void handleRoot();
   void handleApiLive();
   void handleUpdateGet();
   void handleUpdatePost();
   void handleUpdateUpload();
+
   void handleRpmPage();
   void handleSessionsPage();
   void handleApiSessions();
   void handleDownload();
-  void handleNavPage();
-  void handleNavSet();
-  void handleNavStatus();
 };
 
 #endif

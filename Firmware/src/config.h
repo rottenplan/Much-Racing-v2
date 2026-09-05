@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define FIRMWARE_VERSION "v4.1.3"
+#define FIRMWARE_VERSION "v4.1.4"
 
 // Global I2C Mutex for multi-core thread safety
 extern SemaphoreHandle_t i2cMutex;
@@ -73,19 +73,6 @@ extern SemaphoreHandle_t i2cMutex;
 #define BATTERY_VOLTAGE_MIN 3.0
 #define BATTERY_DIVIDER_RATIO                                                  \
   2.44 // Reverted from 3.30 which caused 5.6V readings
-
-// ==========================================
-// VOLTMETER MOTOR (12V) — Pembagi Tegangan
-// ==========================================
-// WIRING:
-//   Aki 12V (+) → Resistor R1 (atas) → titik tengah → GPIO36 (ADC1_CH0)
-//   Titik tengah juga tersambung ke Resistor R2 → GND
-//   GPIO36 hanya terima V ≤ ~3.2V; JANGAN sambungkan 12V langsung!
-// R1=33kΩ, R2=5.6kΩ → Faktor = (33000+5600)/5600 = 6.89
-// ≈ 14.2V motor → 2.06V aman; 22V max ≈ 3.19V
-#define PIN_VOLTMETER 36
-#define VOLTMETER_RATIO 6.89f // (R1+R2)/R2, sesuaikan dgn resistor Anda
-#define VOLTMETER_SAMPLES 16  // jumlah sampel untuk rata-rata
 
 // ==========================================
 // SYSTEM CONSTANTS

@@ -17,6 +17,7 @@ extern WiFiManager wifiManager;
 #include "screens/HistoryScreen.h"
 #include "screens/LapTimerScreen.h"
 #include "screens/MenuScreen.h"
+#include "screens/NavigationScreen.h"
 #include "screens/RaceScreen.h"
 #include "screens/RpmSensorScreen.h"
 #include "screens/SdTestScreen.h"
@@ -64,6 +65,7 @@ void UIManager::begin() {
   _touchDebugScreen = new TouchDebugScreen();
   _sdTestScreen = new SdTestScreen();
   _raceScreen = new RaceScreen();
+  _navigationScreen = new NavigationScreen();
 
   // Mulai Layar
   _splashScreen->begin(this);
@@ -85,6 +87,7 @@ void UIManager::begin() {
   _gpsDebugScreen->begin(this);
   _touchDebugScreen->begin(this);
   _raceScreen->begin(this);
+  _navigationScreen->begin(this);
   _sdTestScreen->begin(this);
 
   _statusBar->begin();
@@ -342,6 +345,10 @@ void UIManager::switchScreen(ScreenType type) {
   case SCREEN_RACE:
     _currentScreen = _raceScreen;
     _screenTitle = "RACING";
+    break;
+  case SCREEN_NAVIGATION:
+    _currentScreen = _navigationScreen;
+    _screenTitle = "NAVIGATION";
     break;
   case SCREEN_DRAG_METER:
     _currentScreen = _dragMeterScreen;

@@ -30,7 +30,8 @@ enum ScreenType {
   SCREEN_GPS_DEBUG,   // GPS Debug screen
   SCREEN_TOUCH_DEBUG, // Touch Debug screen
   SCREEN_SD_TEST,     // Dedicated SD Test diagnostics
-  SCREEN_RACE         // New isolated Race Dashboard
+  SCREEN_RACE,        // New isolated Race Dashboard
+  SCREEN_NAVIGATION   // BT turn-by-turn navigation
 };
 
 // ...
@@ -131,6 +132,7 @@ private:
   UserScreen *_touchDebugScreen; // Touch Debug screen
   UserScreen *_sdTestScreen;     // SD Card Test screen
   UserScreen *_raceScreen;       // Race Dashboard
+  UserScreen *_navigationScreen; // BT Navigation
 
   String _screenTitle; // Added title
 
