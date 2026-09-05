@@ -14,6 +14,17 @@
 		1B0000000000000000000005 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000005 /* LocationTracker.swift */; };
 		1B0000000000000000000006 /* NavigationSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000006 /* NavigationSessionView.swift */; };
 		1B0000000000000000000007 /* ManualTestSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000007 /* ManualTestSection.swift */; };
+		1B0000000000000000000008 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000009 /* Models.swift */; };
+		1B0000000000000000000009 /* APClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000A /* APClient.swift */; };
+		1B000000000000000000000A /* LiveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000B /* LiveStore.swift */; };
+		1B000000000000000000000B /* SessionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000C /* SessionParser.swift */; };
+		1B000000000000000000000C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000D /* HomeView.swift */; };
+		1B000000000000000000000D /* LiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000E /* LiveView.swift */; };
+		1B000000000000000000000E /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000F /* SessionsView.swift */; };
+		1B000000000000000000000F /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000010 /* SessionDetailView.swift */; };
+		1B0000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011 /* SettingsView.swift */; };
+		1B0000000000000000000011 /* NavigationRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000012 /* NavigationRootView.swift */; };
+		1B0000000000000000000012 /* NavigationPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000014 /* NavigationPanelView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +36,18 @@
 		1A0000000000000000000006 /* NavigationSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationSessionView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000007 /* ManualTestSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualTestSection.swift; sourceTree = "<group>"; };
 		1A0000000000000000000008 /* NavSender.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NavSender.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A0000000000000000000009 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		1A000000000000000000000A /* APClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APClient.swift; sourceTree = "<group>"; };
+		1A000000000000000000000B /* LiveStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStore.swift; sourceTree = "<group>"; };
+		1A000000000000000000000C /* SessionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionParser.swift; sourceTree = "<group>"; };
+		1A000000000000000000000D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		1A000000000000000000000E /* LiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveView.swift; sourceTree = "<group>"; };
+		1A000000000000000000000F /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000010 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000012 /* NavigationRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRootView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1A0000000000000000000014 /* NavigationPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationPanelView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +79,18 @@
 				1A0000000000000000000005 /* LocationTracker.swift */,
 				1A0000000000000000000006 /* NavigationSessionView.swift */,
 				1A0000000000000000000007 /* ManualTestSection.swift */,
+				1A0000000000000000000009 /* Models.swift */,
+				1A000000000000000000000A /* APClient.swift */,
+				1A000000000000000000000B /* LiveStore.swift */,
+				1A000000000000000000000C /* SessionParser.swift */,
+				1A000000000000000000000D /* HomeView.swift */,
+				1A000000000000000000000E /* LiveView.swift */,
+				1A000000000000000000000F /* SessionsView.swift */,
+				1A0000000000000000000010 /* SessionDetailView.swift */,
+				1A0000000000000000000011 /* SettingsView.swift */,
+				1A0000000000000000000012 /* NavigationRootView.swift */,
+				1A0000000000000000000014 /* NavigationPanelView.swift */,
+				1A0000000000000000000013 /* Info.plist */,
 			);
 			path = NavSender;
 			sourceTree = "<group>";
@@ -143,6 +178,17 @@
 				1B0000000000000000000005 /* LocationTracker.swift in Sources */,
 				1B0000000000000000000006 /* NavigationSessionView.swift in Sources */,
 				1B0000000000000000000007 /* ManualTestSection.swift in Sources */,
+				1B0000000000000000000008 /* Models.swift in Sources */,
+				1B0000000000000000000009 /* APClient.swift in Sources */,
+				1B000000000000000000000A /* LiveStore.swift in Sources */,
+				1B000000000000000000000B /* SessionParser.swift in Sources */,
+				1B000000000000000000000C /* HomeView.swift in Sources */,
+				1B000000000000000000000D /* LiveView.swift in Sources */,
+				1B000000000000000000000E /* SessionsView.swift in Sources */,
+				1B000000000000000000000F /* SessionDetailView.swift in Sources */,
+				1B0000000000000000000010 /* SettingsView.swift in Sources */,
+				1B0000000000000000000011 /* NavigationRootView.swift in Sources */,
+				1B0000000000000000000012 /* NavigationPanelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -200,7 +246,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -255,7 +301,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -272,13 +318,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KR682L2ASN;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Membutuhkan Bluetooth untuk terhubung ke MuchRacing-Nav";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dibutuhkan untuk melacak posisi selama navigasi";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+INFOPLIST_FILE = "NavSender/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -300,13 +341,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KR682L2ASN;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Membutuhkan Bluetooth untuk terhubung ke MuchRacing-Nav";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dibutuhkan untuk melacak posisi selama navigasi";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+INFOPLIST_FILE = "NavSender/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

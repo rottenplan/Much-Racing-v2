@@ -4,6 +4,11 @@
 #include "../UIManager.h"
 #include <Arduino.h>
 
+// Shareable Google-style maneuver icon drawer (used by NavigationScreen and
+// the SpeedometerScreen banner).
+void navDrawDirectionIcon(TFT_eSPI *tft, int maneuver, int cx, int cy, int size,
+                          uint16_t color);
+
 class NavigationScreen : public UserScreen {
 public:
   void begin(UIManager *ui) override { _ui = ui; }

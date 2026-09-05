@@ -252,9 +252,44 @@ static void drawCurvedNavArrow(TFT_eSPI *tft, int mode, int cx, int cy,
   navArrowHead(tft, headPos, tangent, s, color);
 }
 
-void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
-                                     uint16_t color) {
-  TFT_eSPI *tft = _ui->getTft();
+// --- Checkered-flag "arrive" icon (tft-scoped, reusable) ---
+static void navDrawArriveIconImpl(TFT_eSPI *tft, int cx, int cy, int size) {
+  int cells = 3;
+  float cell = size * 0.20f;
+  float flagW = cell * cells;
+  float flagH = cell * 2;
+  int x0 = cx - (int)flagW / 2;
+  int y0 = cy - (int)flagH / 2 - (int)(cell * 0.5f);
+  for (int r = 0; r < 2; r++) {
+    for (int c = 0; c < cells; c++) {
+      uint16_t col = ((r + c) % 2 == 0) ? TFT_WHITE : COLOR_BG;
+      tft->fillRect(x0 + (int)(c * cell), y0 + (int)(r * cell), (int)cell + 1,
+                    (int)cell + 1, col);
+    }
+  }
+  tft->drawRect(x0, y0, (int)flagW + 1, (int)flagH + 1, COLOR_ACCENT);
+  tft->fillRect(cx - 2, y0 + (int)flagH, 4, (int)(size * 0.30f), TFT_DARKGREY);
+}
+
+// --- Roundabout icon (tft-scoped, reusable) ---
+static void navDrawRoundaboutImpl(TFT_eSPI *tft, int cx, int cy, int size,
+                                  uint16_t color) {
+  float s = (float)size;
+  int R = (int)(s * 0.36f);
+  int wd = (int)(s * 0.085f + 0.5f);
+
+  tft->drawWideLine((float)cx, (float)(cy + (int)(s * 0.45f)), (float)cx,
+                    (float)(cy + R), (float)wd, color, COLOR_BG);
+  tft->drawArc(cx, cy, R, R - wd, 0, 360, color, COLOR_BG);
+  navArrowHead(tft, {(float)cx, (float)(cy - R)}, {1.0f, 0.0f}, s * 0.5f,
+               color); // top -> right
+  navArrowHead(tft, {(float)(cx - R), (float)cy}, {0.0f, -1.0f}, s * 0.5f,
+               color); // left -> up
+}
+
+// Draw a Google-style maneuver icon for the given maneuver code.
+void navDrawDirectionIcon(TFT_eSPI *tft, int maneuver, int cx, int cy, int size,
+                          uint16_t color) {
   float s = (float)size;
   switch (maneuver) {
   case NavigationManager::MANEUVER_STRAIGHT:
@@ -282,10 +317,10 @@ void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
     drawCurvedNavArrow(tft, 7, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_ROUNDABOUT:
-    drawRoundaboutIcon(cx, cy, size, color);
+    navDrawRoundaboutImpl(tft, cx, cy, size, color);
     break;
   case NavigationManager::MANEUVER_ARRIVE:
-    drawArriveIcon(cx, cy, size);
+    navDrawArriveIconImpl(tft, cx, cy, size);
     break;
   default:
     drawCurvedNavArrow(tft, 0, cx, cy, s, color);
@@ -293,48 +328,18 @@ void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
   }
 }
 
+void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
+                                     uint16_t color) {
+  navDrawDirectionIcon(_ui->getTft(), maneuver, cx, cy, size, color);
+}
+
 void NavigationScreen::drawArriveIcon(int cx, int cy, int size) {
-  TFT_eSPI *tft = _ui->getTft();
-  // Checkered flag head
-  int cells = 3;
-  float cell = size * 0.20f;
-  float flagW = cell * cells;
-  float flagH = cell * 2;
-  int x0 = cx - (int)flagW / 2;
-  int y0 = cy - (int)flagH / 2 - (int)(cell * 0.5f);
-  for (int r = 0; r < 2; r++) {
-    for (int c = 0; c < cells; c++) {
-      uint16_t col = ((r + c) % 2 == 0) ? TFT_WHITE : COLOR_BG;
-      tft->fillRect(x0 + (int)(c * cell), y0 + (int)(r * cell), (int)cell + 1,
-                    (int)cell + 1, col);
-    }
-  }
-  // Outline
-  tft->drawRect(x0, y0, (int)flagW + 1, (int)flagH + 1, COLOR_ACCENT);
-  // Pole
-  tft->fillRect(cx - 2, y0 + (int)flagH, 4, (int)(size * 0.30f), TFT_DARKGREY);
+  navDrawArriveIconImpl(_ui->getTft(), cx, cy, size);
 }
 
 void NavigationScreen::drawRoundaboutIcon(int cx, int cy, int size,
                                           uint16_t color) {
-  TFT_eSPI *tft = _ui->getTft();
-  float s = (float)size;
-
-  int R = (int)(s * 0.36f);
-  int wd = (int)(s * 0.085f + 0.5f);
-
-  // Stem entering from below
-  tft->drawWideLine((float)cx, (float)(cy + (int)(s * 0.45f)), (float)cx,
-                    (float)(cy + R), (float)wd, color, COLOR_BG);
-
-  // Ring (radius R, thickness wd)
-  tft->drawArc(cx, cy, R, R - wd, 0, 360, color, COLOR_BG);
-
-  // Clockwise travel arrows on the ring
-  navArrowHead(tft, {(float)cx, (float)(cy - R)}, {1.0f, 0.0f}, s * 0.5f,
-               color); // top -> right
-  navArrowHead(tft, {(float)(cx - R), (float)cy}, {0.0f, -1.0f}, s * 0.5f,
-               color); // left -> up
+  navDrawRoundaboutImpl(_ui->getTft(), cx, cy, size, color);
 }
 
 void NavigationScreen::drawStatusChip(bool btConnected) {

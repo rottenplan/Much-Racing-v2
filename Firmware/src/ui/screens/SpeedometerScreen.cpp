@@ -2,12 +2,42 @@
 #include "../../config.h"
 #include "../../core/BatteryManager.h"
 #include "../../core/GPSManager.h"
+#include "../../core/NavigationManager.h"
 #include "../../core/IMUManager.h"
+#include "NavigationScreen.h"
 #include "../fonts/Org_01.h"
 #include <Preferences.h>
 
 extern GPSManager gpsManager;
 extern IMUManager imuManager;
+
+// ===========================================================================
+// Layout bersama (dipakai update() & drawDashboard() agar sentuh selalu sejajar
+// dengan gambar, dan tidak ada elemen yang saling menimpa).
+// Saat navigasi aktif, grid kartu digeser ke bawah untuk menyisakan strip
+// khusus banner navigasi di atasnya.
+// ===========================================================================
+static const int NAV_Y = STATUS_BAR_HEIGHT + 2; // 27
+static const int NAV_H = 70;
+static const int RPM_BAR_Y = 265;
+static const int GRID_BOT = RPM_BAR_Y - 5; // 260
+static const int GRID_GAP = 4;
+static const int GRID_W = 290;
+static const int CELL_W = (GRID_W - GRID_GAP) / 2; // 143
+
+struct SpeedDashboardLayout {
+  int gridTop;
+  int gridH;
+  int cellH;
+};
+
+static SpeedDashboardLayout speedDashboardLayout(bool navActive) {
+  SpeedDashboardLayout L;
+  L.gridTop = navActive ? (NAV_Y + NAV_H + 6) : (STATUS_BAR_HEIGHT + 4);
+  L.gridH = GRID_BOT - L.gridTop;
+  L.cellH = (L.gridH - GRID_GAP * 2) / 3;
+  return L;
+}
 
 void SpeedometerScreen::onShow() {
   TFT_eSPI *tft = _ui->getTft();
@@ -27,6 +57,11 @@ void SpeedometerScreen::onShow() {
   _maxSpeed = 0;
   _maxRPM = 0;
   _lastSats = -1;
+  _lastNavActive = false;
+  _navBannerVisible = false;
+  _lastNavManeuver = -1;
+  _lastNavDistance = -1;
+  _lastNavInstruction = "";
 
   // Cache Settings
   Preferences prefs;
@@ -45,13 +80,9 @@ void SpeedometerScreen::update() {
   // 1. Tombol Kembali
   UIManager::TouchPoint p = _ui->getTouchPoint();
 
-  // Layout constants (must match drawDashboard)
-  const int GRID_TOP = STATUS_BAR_HEIGHT + 4;
-  const int GRID_H = SCREEN_HEIGHT - GRID_TOP - 4;
-  const int GRID_W = 260;
-  const int GAP = 4;
-  const int CELL_W = (GRID_W - GAP) / 2;     // ~128
-  const int CELL_H = (GRID_H - GAP * 2) / 3; // ~96
+  // Layout (shared with drawDashboard)
+  SpeedDashboardLayout lay =
+      speedDashboardLayout(navigationManager.hasActiveRoute());
 
   // Back button: bottom-left corner, below RPM bar (Y=265+12=277)
   if (p.x != -1 && p.x < 40 && p.y > 277) {
@@ -61,9 +92,9 @@ void SpeedometerScreen::update() {
 
   // 2. G-Force Calibration (Double Tap on LEAN card - row 2, col 0)
   int leanCardX = 5;
-  int leanCardY = GRID_TOP + 2 * (CELL_H + GAP);
+  int leanCardY = lay.gridTop + 2 * (lay.cellH + GRID_GAP);
   if (p.x >= leanCardX && p.x <= leanCardX + CELL_W && p.y >= leanCardY &&
-      p.y <= leanCardY + CELL_H) {
+      p.y <= leanCardY + lay.cellH) {
     unsigned long now = millis();
     if (now - _lastTapTime < 300) { // Double tap within 300ms
       _tapCount++;
@@ -80,7 +111,7 @@ void SpeedometerScreen::update() {
           int toastW = 170;
           int toastH = 36;
           int toastX = 298 + (177 - toastW) / 2; // center in right panel
-          int toastY = GRID_TOP + 5; // just below status bar, above speed
+          int toastY = lay.gridTop + lay.gridH - 36; // bawah panel, di bawah km/h
           uint16_t cardColor = 0x18E3;
           tft->fillRoundRect(toastX, toastY, toastW, toastH, 8, cardColor);
           tft->drawRoundRect(toastX, toastY, toastW, toastH, 8, TFT_SILVER);
@@ -159,10 +190,20 @@ void SpeedometerScreen::update() {
   float accY =
       imuManager.getAccX(); // Lateral G (X is Roll/Lateral in standard mapping)
 
+  // Navigation overlay state (turn-by-turn via BLE / MQTT)
+  bool navActive = navigationManager.hasActiveRoute();
+  int navManeuver = navActive ? navigationManager.getManeuver() : -1;
+  long navDistance = navActive ? navigationManager.getDistanceM() : -1;
+  String navText = navActive ? navigationManager.getInstruction() : "";
+  if (navActive)
+    _ui->updateInteraction(); // keep screen awake while navigating
+
   if (speed != _lastSpeed || rpm != _lastRPM || useMph != _lastUnits ||
       timeStr != _lastTime || trip != _lastTrip || sats != _lastSats ||
       abs(roll - _lastRoll) > 0.1f || abs(accY - _lastAccY) > 0.01f ||
-      gear != _lastGear || bat != _lastBat) {
+      gear != _lastGear || bat != _lastBat ||
+      navActive != _lastNavActive || navManeuver != _lastNavManeuver ||
+      navDistance != _lastNavDistance || navText != _lastNavInstruction) {
     _lastSpeed = speed;
     _lastRPM = rpm;
     _lastUnits = useMph;
@@ -173,7 +214,18 @@ void SpeedometerScreen::update() {
     _lastAccY = accY;
     _lastGear = gear;
     _lastBat = bat;
-    drawDashboard(false);
+    _lastNavActive = navActive;
+    _lastNavManeuver = navManeuver;
+    _lastNavDistance = navDistance;
+    _lastNavInstruction = navText;
+
+    // Banner muncul/hilang -> redraw penuh agar grid di baris 0 utuh kembali
+    if (navActive != _navBannerVisible) {
+      _navBannerVisible = navActive;
+      drawDashboard(true);
+    } else {
+      drawDashboard(false);
+    }
   }
 }
 
@@ -183,6 +235,94 @@ void drawSegment(TFT_eSPI *tft, int x, int y, int w, int h, int angleOffset,
   tft->fillTriangle(x, y + h, x + w, y + h, x + angleOffset, y, color);
   tft->fillTriangle(x + w, y + h, x + w + angleOffset, y, x + angleOffset, y,
                     color);
+}
+
+// Label manuver singkat (Bahasa) jika teks instruksi tidak tersedia.
+static const char *speedManeuverShort(int m) {
+  switch (m) {
+  case NavigationManager::MANEUVER_ARRIVE:
+    return "TIBA DI TUJUAN";
+  case NavigationManager::MANEUVER_STRAIGHT:
+    return "LURUS";
+  case NavigationManager::MANEUVER_LEFT:
+    return "BELOK KIRI";
+  case NavigationManager::MANEUVER_SHARP_LEFT:
+    return "KIRI TAJAM";
+  case NavigationManager::MANEUVER_SLIGHT_LEFT:
+    return "KIRI SEDIKIT";
+  case NavigationManager::MANEUVER_RIGHT:
+    return "BELOK KANAN";
+  case NavigationManager::MANEUVER_SHARP_RIGHT:
+    return "KANAN TAJAM";
+  case NavigationManager::MANEUVER_SLIGHT_RIGHT:
+    return "KANAN SEDIKIT";
+  case NavigationManager::MANEUVER_UTURN:
+    return "PUTAR BALIK";
+  case NavigationManager::MANEUVER_ROUNDABOUT:
+    return "BUNDARAN";
+  default:
+    return "LANJUT";
+  }
+}
+
+// Format jarak ringkas: "850 m", "1.2 km", "--".
+static String speedNavDist(long d) {
+  if (d < 0)
+    return "--";
+  if (d >= 1000) {
+    char b[16];
+    snprintf(b, sizeof(b), "%.1f km", d / 1000.0);
+    return String(b);
+  }
+  return String(d) + " m";
+}
+
+// Wrap teks jadi maks 2 baris (Org_01), rata tengah horizontal mulai dari yTop.
+static void drawSpeedNavText(TFT_eSPI *tft, const String &text, int xCenter,
+                             int yTop, int maxW, int size, int lineH,
+                             uint16_t color, uint16_t bg) {
+  tft->setFreeFont(&Org_01);
+  tft->setTextSize(size);
+  tft->setTextColor(color, bg);
+  tft->setTextDatum(TL_DATUM);
+
+  String lines[2];
+  int lineCount = 0;
+  int startIdx = 0;
+  while (startIdx < (int)text.length() && lineCount < 2) {
+    int endIdx = text.length();
+    for (int i = startIdx; i < (int)text.length(); i++) {
+      String cand = text.substring(startIdx, i + 1);
+      if (tft->textWidth(cand) > maxW) {
+        endIdx = i;
+        break;
+      }
+    }
+    if (endIdx <= startIdx) {
+      String cand = text.substring(startIdx, endIdx);
+      while (cand.length() > 1 && tft->textWidth(cand) > maxW)
+        cand.remove(cand.length() - 1);
+      lines[lineCount++] = cand;
+      startIdx += cand.length();
+    } else {
+      lines[lineCount] = text.substring(startIdx, endIdx);
+      while (lines[lineCount].endsWith(" ") && lines[lineCount].length() > 0)
+        lines[lineCount].remove(lines[lineCount].length() - 1);
+      startIdx = endIdx;
+      lineCount++;
+    }
+    while (startIdx < (int)text.length() && text[startIdx] == ' ')
+      startIdx++;
+  }
+  if (startIdx < (int)text.length() && lineCount > 0)
+    lines[lineCount - 1] += "...";
+
+  int y = yTop;
+  for (int i = 0; i < lineCount; i++) {
+    int lw = tft->textWidth(lines[i]);
+    tft->drawString(lines[i], xCenter - lw / 2, y);
+    y += lineH;
+  }
 }
 
 // --- LAYOUT: 3x2 Grid (Left) + Big Speed (Right) + RPM Bar (Bottom Original)
@@ -196,36 +336,38 @@ void SpeedometerScreen::drawDashboard(bool force) {
   uint16_t colBorder = TFT_DARKGREY;
 
   // === RPM bar: ORIGINAL fixed position ===
-  const int RPM_BAR_Y = 265;
   const int RPM_BAR_H = 12;
   const int RPM_BAR_W = 400;
   const int RPM_BAR_X = (SCREEN_WIDTH - RPM_BAR_W) / 2;
 
+  // === Layout: grid (kiri) bergeser ke bawah saat navigasi aktif ===
+  bool navActive = navigationManager.hasActiveRoute();
+  SpeedDashboardLayout lay = speedDashboardLayout(navActive);
+  const int GRID_TOP = lay.gridTop;
+  const int GRID_H = lay.gridH;
+
   // === Grid area: status bar down to just above RPM bar ===
   const int MARGIN = 5;
-  const int GRID_TOP = STATUS_BAR_HEIGHT + 4;
-  const int GRID_BOT = RPM_BAR_Y - 5;     // 5px gap above bar
-  const int GRID_H = GRID_BOT - GRID_TOP; // ~240px
-  const int GAP = 4;
   const int ROW_COUNT = 3;
   const int COL_COUNT = 2;
-  const int GRID_W = 290; // wider boxes
-  const int CELL_W = (GRID_W - GAP) / COL_COUNT;
-  const int CELL_H = (GRID_H - GAP * 2) / ROW_COUNT;
+  const int CELL_H = lay.cellH;
 
-  const int RIGHT_X = GRID_W + GAP * 2;
+  const int RIGHT_X = GRID_W + GRID_GAP * 2;
   const int RIGHT_W = SCREEN_WIDTH - RIGHT_X - MARGIN;
 
-  int colX[2] = {MARGIN, MARGIN + CELL_W + GAP};
+  int colX[2] = {MARGIN, MARGIN + CELL_W + GRID_GAP};
   const char *labels[6] = {"MAX RPM", "MAX SPD", "SATS",
                            "DIST",    "LEAN",    "LAT-G"};
 
   if (force) {
     _ui->drawStatusBar(true);
 
+    // Bersihkan zona banner (bisa menyisakan piksel dari status sebelumnya)
+    tft->fillRect(6, NAV_Y, SCREEN_WIDTH - 12, NAV_H, colBg);
+
     // 6 card outlines
     for (int row = 0; row < ROW_COUNT; row++) {
-      int cy = GRID_TOP + row * (CELL_H + GAP);
+      int cy = GRID_TOP + row * (CELL_H + GRID_GAP);
       for (int col = 0; col < COL_COUNT; col++) {
         int cx = colX[col];
         tft->drawRoundRect(cx, cy, CELL_W, CELL_H, 5, colBorder);
@@ -286,7 +428,7 @@ void SpeedometerScreen::drawDashboard(bool force) {
 
   for (int i = 0; i < 6; i++) {
     int cx = colX[cells[i].col];
-    int cy = GRID_TOP + cells[i].row * (CELL_H + GAP);
+    int cy = GRID_TOP + cells[i].row * (CELL_H + GRID_GAP);
     int valX = cx + CELL_W / 2;
     int valY = cy + CELL_H / 2 + 8; // center, shifted down to clear top label
     tft->setTextPadding(CELL_W - 8);
@@ -332,6 +474,50 @@ void SpeedometerScreen::drawDashboard(bool force) {
   sprintf(buf, "%d", _lastRPM);
   tft->drawString(buf, RPM_BAR_X + RPM_BAR_W + 6, RPM_BAR_Y + RPM_BAR_H / 2);
   tft->setTextPadding(0);
+
+  // === NAV banner (strip khusus di atas grid saat rute aktif) ===
+  if (navActive) {
+    const int NAV_X = 6;
+    const int NAV_W = SCREEN_WIDTH - 12;
+    int maneuver = navigationManager.getManeuver();
+    long dist = navigationManager.getDistanceM();
+    String text = navigationManager.getInstruction();
+    if (text.length() == 0)
+      text = String(speedManeuverShort(maneuver));
+    bool arriving = (maneuver == NavigationManager::MANEUVER_ARRIVE);
+    uint16_t navBg = 0x10A3; // teal gelap
+
+    tft->fillRoundRect(NAV_X, NAV_Y, NAV_W, NAV_H, 8, navBg);
+    tft->drawRoundRect(NAV_X, NAV_Y, NAV_W, NAV_H, 8,
+                       arriving ? TFT_GREEN : COLOR_ACCENT);
+
+    // Icon Google-style di kiri (spans ~x23..x69, y39..y85 -> tak lewati divider)
+    int icx = NAV_X + 46;
+    int icy = NAV_Y + NAV_H / 2;
+    navDrawDirectionIcon(tft, maneuver, icx, icy, 46,
+                         arriving ? TFT_GREEN : TFT_WHITE);
+
+    // Garis pemisah antara icon dan zona teks
+    tft->drawLine(NAV_X + 90, NAV_Y + 5, NAV_X + 90, NAV_Y + NAV_H - 5,
+                  COLOR_SECONDARY);
+
+    // Jarak (zona kanan) — garis bawah banner, tidak menimpa teks di atasnya
+    int rx = NAV_X + NAV_W - 84; // 390 (zona jarak: 390..474)
+    int rcx = rx + 42;
+    tft->setFreeFont(&Org_01);
+    tft->setTextSize(3);
+    tft->setTextColor(arriving ? TFT_GREEN : COLOR_ACCENT, navBg);
+    tft->setTextDatum(MC_DATUM);
+    // MC di y=84 -> teks ~72..96, banner bawah =97 (1px margin)
+    tft->drawString(speedNavDist(dist), rcx, NAV_Y + NAV_H - 13);
+
+    // Instruksi (zona tengah) — 2 baris di atas, berakhir ~y68 (gap 4px ke jarak)
+    int textY = NAV_Y + 8;
+    int textCx = (NAV_X + 90 + rx) / 2 + 5; // 249
+    int textMaxW = rx - (NAV_X + 90) - 30; // 264 -> tepi kanan max ~380
+    drawSpeedNavText(tft, text, textCx, textY, textMaxW, 2, 17, COLOR_TEXT,
+                     navBg);
+  }
 
   // --- FONT SAFETY ---
   tft->setTextSize(1);

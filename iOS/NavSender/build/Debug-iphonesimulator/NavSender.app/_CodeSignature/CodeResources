@@ -6,27 +6,15 @@
 	<dict>
 		<key>Info.plist</key>
 		<data>
-		a8heJbENZXvrE9ftWV+yI5lkLak=
+		eCpci52OEfm/U7vFqAVRuvWE8q4=
 		</data>
 		<key>PkgInfo</key>
 		<data>
 		n57qDP4tZfLD1rCS43W0B4LQjzE=
 		</data>
-		<key>embedded.mobileprovision</key>
-		<data>
-		HPzIQ5kJ/EA+PSpU6l/UGnFY7i4=
-		</data>
 	</dict>
 	<key>files2</key>
-	<dict>
-		<key>embedded.mobileprovision</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			DycTxaPSb1ecgz47Blk7JgvMENP0jFp2z1P3IH1bw24=
-			</data>
-		</dict>
-	</dict>
+	<dict/>
 	<key>rules</key>
 	<dict>
 		<key>^.*</key>

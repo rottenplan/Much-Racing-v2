@@ -21,6 +21,14 @@ final class RouteManager: ObservableObject {
     @Published var routeSummary = ""
     @Published var steps: [NavStep] = []
 
+    func reset() {
+        route = nil
+        routeSummary = ""
+        steps = []
+        errorMessage = nil
+        isComputing = false
+    }
+
     // Cari tempat tujuan lewat pencarian lokal MapKit (tanpa API key).
     func searchDestination(_ query: String,
                            near center: CLLocationCoordinate2D) async throws -> MKMapItem? {

@@ -28,6 +28,13 @@ private:
   float _lastRoll = 0;
   float _lastAccY = 0;
 
+  // Navigation overlay cache (change detection)
+  bool _lastNavActive = false;
+  bool _navBannerVisible = false;
+  int _lastNavManeuver = -1;
+  long _lastNavDistance = -1;
+  String _lastNavInstruction;
+
   // Double tap detection
   unsigned long _lastTapTime = 0;
   int _tapCount = 0;
