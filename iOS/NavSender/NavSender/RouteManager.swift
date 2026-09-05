@@ -96,9 +96,9 @@ final class RouteManager: ObservableObject {
                 text = "You have arrived"
             } else {
                 // Arah masuk vs arah keluar titik manuver -> sudut belokan.
-                let heading = heading(of: step.polyline)
+                let inHeading = heading(of: step.polyline)
                 let nextHeading = heading(of: raw[i + 1].polyline)
-                var delta = nextHeading - heading
+                var delta = nextHeading - inHeading
                 delta = (delta + 540).truncatingRemainder(dividingBy: 360) - 180
                 icon = classify(delta: delta)
                 text = step.instructions.isEmpty ? "Continue" : step.instructions

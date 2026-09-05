@@ -88,12 +88,18 @@ final class BLEManager: NSObject, ObservableObject {
 
     // Kirim satu baris JSON ke karakteristik RX. Data otomatis dipecah
     // sesuai MTU agar aman untuk baris yang panjang.
+    // Baris selalu diakhiri '\n' karena firmware baru memproses baris
+    // setelah menerima newline (lihat NavigationManager.cpp).
     func send(_ json: String) {
         guard let peripheral, let rxCharacteristic else {
             status = .failed("Belum terhubung. Scan dulu.")
             return
         }
-        let data = Data(json.utf8)
+        var payload = json
+        if !payload.hasSuffix("\n") {
+            payload += "\n"
+        }
+        let data = Data(payload.utf8)
         var mtu = peripheral.maximumWriteValueLength(for: .withResponse)
         if mtu <= 0 { mtu = 182 }
 
@@ -155,8 +161,6 @@ extension BLEManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        // Minta MTU lebih besar supaya baris JSON panjang tidak terpotong.
-        peripheral.setMaximumWriteValueLength(512, for: .withResponse)
         peripheral.delegate = self
         peripheral.discoverServices([kNavServiceUUID])
     }

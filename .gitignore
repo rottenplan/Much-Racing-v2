@@ -6,4 +6,18 @@
 .DS_Store
 Application/
 .pio-core/
-.pio-core/
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Xcode build caches (keep only final .app bundles)
+iOS/NavSender/build/*
+!iOS/NavSender/build/Debug-iphoneos/
+!iOS/NavSender/build/Debug-iphonesimulator/
+!iOS/NavSender/build/Debug-iphoneos/NavSender.app/
+!iOS/NavSender/build/Debug-iphonesimulator/NavSender.app/
+!iOS/NavSender/build/Debug-iphoneos/NavSender.app/**
+!iOS/NavSender/build/Debug-iphonesimulator/NavSender.app/**
+iOS/NavSender/build/**/NavSender.swiftmodule/

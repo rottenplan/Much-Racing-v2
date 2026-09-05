@@ -103,45 +103,153 @@ static void drawWrappedText(TFT_eSPI *tft, const String &text, int xCenter,
   }
 }
 
-// Draw a solid arrow in the given screen direction.
-static void drawDirectionalArrow(TFT_eSPI *tft, float dx, float dy, int cx,
-                                 int cy, float s, uint16_t color) {
-  // Normalize direction
-  float len = sqrtf(dx * dx + dy * dy);
-  dx /= len;
-  dy /= len;
-  float px = -dy, py = dx; // perpendicular
+// ---------------------------------------------------------------------------
+// Google Maps-style maneuver icons (thick curved arrows)
+// ---------------------------------------------------------------------------
+struct NavPt {
+  float x, y;
+};
 
-  float tail = s * 0.38f;
-  float neck = s * 0.18f;
-  float headLen = s * 0.34f;
-  float shaftHalf = s * 0.085f;
-  float headHalf = s * 0.30f;
+static NavPt navBezierQuad(NavPt p0, NavPt p1, NavPt p2, float t) {
+  float u = 1.0f - t;
+  return {u * u * p0.x + 2.0f * u * t * p1.x + t * t * p2.x,
+          u * u * p0.y + 2.0f * u * t * p1.y + t * t * p2.y};
+}
 
-  // Shaft quad corners (center based)
-  float ax = cx + (-dx * tail) + (-px * shaftHalf);
-  float ay = cy + (-dy * tail) + (-py * shaftHalf);
-  float bx = cx + (-dx * tail) + (px * shaftHalf);
-  float by = cy + (-dy * tail) + (py * shaftHalf);
-  float ex = cx + (dx * neck) + (px * shaftHalf);
-  float ey = cy + (dy * neck) + (py * shaftHalf);
-  float fx = cx + (dx * neck) + (-px * shaftHalf);
-  float fy = cy + (dy * neck) + (-py * shaftHalf);
+static NavPt navBezierCubic(NavPt p0, NavPt p1, NavPt p2, NavPt p3, float t) {
+  float u = 1.0f - t;
+  float a = u * u * u;
+  float b = 3.0f * u * u * t;
+  float c = 3.0f * u * t * t;
+  float d = t * t * t;
+  return {a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+          a * p0.y + b * p1.y + c * p2.y + d * p3.y};
+}
 
-  // Head corners
-  float hx = cx + (dx * (neck + headLen));
-  float hy = cy + (dy * (neck + headLen));
-  float gx = cx + (dx * neck) + (-px * headHalf);
-  float gy = cy + (dy * neck) + (-py * headHalf);
-  float ix = cx + (dx * neck) + (px * headHalf);
-  float iy = cy + (dy * neck) + (py * headHalf);
+// Thick rounded stroke (smooth joints/caps) through sampled path points.
+static void strokeNavPath(TFT_eSPI *tft, const NavPt *pts, int n, float w,
+                          uint16_t color) {
+  int wd = (int)(w + 0.5f);
+  int rr = wd / 2;
+  for (int i = 0; i < n - 1; i++) {
+    tft->drawWideLine(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, w,
+                      color, COLOR_BG);
+  }
+  for (int i = 0; i < n; i++) {
+    tft->fillCircle((int)pts[i].x, (int)pts[i].y, rr, color);
+  }
+}
 
-  tft->fillTriangle((int)ax, (int)ay, (int)bx, (int)by, (int)ex, (int)ey,
-                    color);
-  tft->fillTriangle((int)ax, (int)ay, (int)ex, (int)ey, (int)fx, (int)fy,
-                    color);
-  tft->fillTriangle((int)gx, (int)gy, (int)ix, (int)iy, (int)hx, (int)hy,
-                    color);
+// Flared arrowhead at `end`, oriented along `tangent`.
+static void navArrowHead(TFT_eSPI *tft, NavPt end, NavPt tangent, float s,
+                         uint16_t color) {
+  float len = sqrtf(tangent.x * tangent.x + tangent.y * tangent.y);
+  if (len < 0.001f)
+    return;
+  float dx = tangent.x / len;
+  float dy = tangent.y / len;
+  float px = -dy;
+  float py = dx;
+
+  float hLen = s * 0.17f;  // head length
+  float hWid = s * 0.15f;  // head half width
+  float hBack = s * 0.05f; // base inset
+
+  NavPt tip = {end.x + dx * hLen, end.y + dy * hLen};
+  NavPt base = {end.x - dx * hBack, end.y - dy * hBack};
+  NavPt a = {base.x + px * hWid, base.y + py * hWid};
+  NavPt b = {base.x - px * hWid, base.y - py * hWid};
+
+  tft->fillTriangle((int)a.x, (int)a.y, (int)b.x, (int)b.y, (int)tip.x,
+                    (int)tip.y, color);
+}
+
+// Draws a Google-style curved arrow.
+// mode: 0=straight, 1=slight-left, 2=left, 3=sharp-left, 4=slight-right,
+//       5=right, 6=sharp-right, 7=u-turn
+static void drawCurvedNavArrow(TFT_eSPI *tft, int mode, int cx, int cy,
+                               float s, uint16_t color) {
+  const int SEG = 18;
+  NavPt path[SEG];
+  NavPt p0 = {0.0f, 0.45f};
+  NavPt p1, p2, p3;
+  NavPt tangent = {0.0f, -1.0f};
+  bool cubic = false;
+  bool straight = false;
+
+  switch (mode) {
+  case 0: // straight
+    p1 = {0.0f, -0.08f};
+    straight = true;
+    break;
+  case 1: // slight left
+    p1 = {0.0f, 0.22f};
+    p2 = {-0.17f, -0.34f};
+    break;
+  case 2: // left
+    p1 = {0.0f, -0.02f};
+    p2 = {-0.45f, -0.05f};
+    break;
+  case 3: // sharp left
+    p1 = {-0.32f, -0.06f};
+    p2 = {-0.44f, -0.32f};
+    break;
+  case 4: // slight right
+    p1 = {0.0f, 0.22f};
+    p2 = {0.17f, -0.34f};
+    break;
+  case 5: // right
+    p1 = {0.0f, -0.02f};
+    p2 = {0.45f, -0.05f};
+    break;
+  case 6: // sharp right
+    p1 = {0.32f, -0.06f};
+    p2 = {0.44f, -0.32f};
+    break;
+  case 7: { // u-turn
+    p1 = {0.0f, 0.12f};
+    p2 = {0.34f, -0.26f};
+    p3 = {0.22f, 0.36f};
+    cubic = true;
+    break;
+  }
+  default:
+    p1 = {0.0f, 0.22f};
+    p2 = {-0.17f, -0.34f};
+    break;
+  }
+
+  int n;
+  if (straight) {
+    path[0] = p0;
+    path[1] = p1;
+    n = 2;
+  } else {
+    n = SEG;
+    for (int i = 0; i < SEG; i++) {
+      float t = (float)i / (float)(SEG - 1);
+      if (cubic)
+        path[i] = navBezierCubic(p0, p1, p2, p3, t);
+      else
+        path[i] = navBezierQuad(p0, p1, p2, t);
+    }
+    if (cubic)
+      tangent = {p3.x - p2.x, p3.y - p2.y};
+    else
+      tangent = {p2.x - p1.x, p2.y - p1.y};
+  }
+
+  float scale = s;
+  for (int i = 0; i < n; i++) {
+    path[i].x = cx + path[i].x * scale;
+    path[i].y = cy + path[i].y * scale;
+  }
+
+  float w = s * 0.085f;
+  strokeNavPath(tft, path, n, w, color);
+
+  NavPt headPos = path[n - 1];
+  navArrowHead(tft, headPos, tangent, s, color);
 }
 
 void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
@@ -150,28 +258,28 @@ void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
   float s = (float)size;
   switch (maneuver) {
   case NavigationManager::MANEUVER_STRAIGHT:
-    drawDirectionalArrow(tft, 0.0f, -1.0f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 0, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_SLIGHT_LEFT:
-    drawDirectionalArrow(tft, -0.40f, -0.92f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 1, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_LEFT:
-    drawDirectionalArrow(tft, -1.0f, 0.0f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 2, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_SHARP_LEFT:
-    drawDirectionalArrow(tft, -0.86f, 0.51f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 3, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_SLIGHT_RIGHT:
-    drawDirectionalArrow(tft, 0.40f, -0.92f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 4, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_RIGHT:
-    drawDirectionalArrow(tft, 1.0f, 0.0f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 5, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_SHARP_RIGHT:
-    drawDirectionalArrow(tft, 0.86f, 0.51f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 6, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_UTURN:
-    drawDirectionalArrow(tft, 0.0f, 1.0f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 7, cx, cy, s, color);
     break;
   case NavigationManager::MANEUVER_ROUNDABOUT:
     drawRoundaboutIcon(cx, cy, size, color);
@@ -180,7 +288,7 @@ void NavigationScreen::drawArrowIcon(int maneuver, int cx, int cy, int size,
     drawArriveIcon(cx, cy, size);
     break;
   default:
-    drawDirectionalArrow(tft, 0.0f, -1.0f, cx, cy, s, color);
+    drawCurvedNavArrow(tft, 0, cx, cy, s, color);
     break;
   }
 }
@@ -210,10 +318,23 @@ void NavigationScreen::drawArriveIcon(int cx, int cy, int size) {
 void NavigationScreen::drawRoundaboutIcon(int cx, int cy, int size,
                                           uint16_t color) {
   TFT_eSPI *tft = _ui->getTft();
-  int r = size / 2;
-  tft->drawCircle(cx, cy, r, color);
-  // Inner arrow suggestion
-  drawDirectionalArrow(tft, 0.0f, -1.0f, cx, cy, (float)r * 0.8f, color);
+  float s = (float)size;
+
+  int R = (int)(s * 0.36f);
+  int wd = (int)(s * 0.085f + 0.5f);
+
+  // Stem entering from below
+  tft->drawWideLine((float)cx, (float)(cy + (int)(s * 0.45f)), (float)cx,
+                    (float)(cy + R), (float)wd, color, COLOR_BG);
+
+  // Ring (radius R, thickness wd)
+  tft->drawArc(cx, cy, R, R - wd, 0, 360, color, COLOR_BG);
+
+  // Clockwise travel arrows on the ring
+  navArrowHead(tft, {(float)cx, (float)(cy - R)}, {1.0f, 0.0f}, s * 0.5f,
+               color); // top -> right
+  navArrowHead(tft, {(float)(cx - R), (float)cy}, {0.0f, -1.0f}, s * 0.5f,
+               color); // left -> up
 }
 
 void NavigationScreen::drawStatusChip(bool btConnected) {
