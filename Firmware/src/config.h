@@ -51,9 +51,15 @@ extern SemaphoreHandle_t i2cMutex;
 #define PIN_RGB_BLUE 17
 #define LED_COMMON_ANODE // Uncomment if using Common Anode (Active LOW) RGB LED
 // #define PIN_LIGHT_SENSOR 34
-// #define PIN_LIGHT_SENSOR 34
 // #define PIN_SPEAKER 26
 #define PIN_RPM_INPUT 35 // User requested 35
+
+// INA219 Power Meter (I2C, dedicated Wire1 bus - SDA=8, SCL=9)
+#define PIN_INA219_SDA 8
+#define PIN_INA219_SCL 9
+#define INA219_SHUNT_OHM 0.1f      // Shunt resistor pada modul (ohm)
+#define INA219_MAX_CURRENT_A 3.2f  // Arus maksimal sesuai shunt (0.1R -> 3.2A)
+#define INA219_VOLTAGE_SCALE 1.0f  // 1.0 = langsung; >1 jika pakai pembagi tegangan
 
 // GPS / UART
 // GPS at GPIO 22 (RX only - no TX needed, device only receives from GPS)

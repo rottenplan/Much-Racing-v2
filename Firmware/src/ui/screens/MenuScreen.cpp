@@ -8,10 +8,10 @@
 
 #include <stdlib.h>
 
-#define MENU_ITEMS 8
+#define MENU_ITEMS 7
 const char *menuLabels[MENU_ITEMS] = {
-    "LAP TIMER",   "DRAG METER", "RPM SENSOR", "SPEEDOMETER",
-    "GPS STATUS",  "SETTINGS",   "SYNCHRONIZE", "NAVIGATION"};
+    "LAP TIMER",  "DRAG METER", "RPM SENSOR", "SPEEDOMETER",
+    "GPS STATUS", "SETTINGS",   "SYNCHRONIZE"};
 
 void MenuScreen::onShow() {
   // _selectedIndex is now persistent member
@@ -185,9 +185,6 @@ void MenuScreen::update() {
       break;
     case 6:
       _ui->switchScreen(SCREEN_SYNCHRONIZE);
-      break;
-    case 7:
-      _ui->switchScreen(SCREEN_NAVIGATION);
       break;
     }
   }

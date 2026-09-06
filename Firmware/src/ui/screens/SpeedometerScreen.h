@@ -14,6 +14,7 @@ public:
 private:
   UIManager *_ui;
   void drawDashboard(bool force = false);
+  void drawNavBanner(bool force);
 
   float _lastSpeed = -1;
   float _maxSpeed = 0;
@@ -30,10 +31,19 @@ private:
 
   // Navigation overlay cache (change detection)
   bool _lastNavActive = false;
-  bool _navBannerVisible = false;
   int _lastNavManeuver = -1;
   long _lastNavDistance = -1;
   String _lastNavInstruction;
+
+  // Banner cache (anti-flicker): hanya digambar ulang bila isinya berubah
+  bool _drawnBannerActive = false;
+  int _drawnBannerManeuver = -1;
+  long _drawnBannerDist = -1;
+  String _drawnBannerText;
+
+  // Volt meter cache
+  float _lastVolt = -1;
+  float _lastCurrent = -1;
 
   // Double tap detection
   unsigned long _lastTapTime = 0;
