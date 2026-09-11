@@ -31,6 +31,9 @@ private:
   int _lastManeuver = -2;
   long _lastDistance = -2;
   String _lastInstruction;
+  int _lastRouteIndex = -1;
+  int _lastRouteCount = -1;
+  long _lastTotalM = -2;
   bool _lastConnected = false;
   bool _lastActive = false;
   bool _lastHasBt = false;

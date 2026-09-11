@@ -20,6 +20,11 @@
 //   dist  (int, optional) remaining distance in METERS (-1/omitted = unknown)
 //   text  (string) human readable instruction / street name
 //
+// Optional fields (alternate-route support, sent by the NavSender app):
+//   route  (int, optional) selected route number, 1-based
+//   routes (int, optional) total number of route alternatives
+//   total  (int, optional) remaining total distance to destination in METERS
+//
 // Special events (instead of icon):
 //   {"event":"arrive"}   -> arrival at destination (shows ARRIVE state)
 //   {"event":"clear"}    -> navigation ended, go back to idle
@@ -65,6 +70,9 @@ public:
   int getManeuver();
   long getDistanceM();
   String getInstruction();
+  int getRouteIndex();                         // selected route, 1-based (0 = n/a)
+  int getRouteCount();                         // number of alternatives (0 = single)
+  long getTotalM();                            // remaining total distance (m)
   unsigned long getLastUpdateMs();
   int getSource();                             // where the data came from
 
@@ -86,6 +94,9 @@ private:
   int _maneuver = MANEUVER_STRAIGHT;
   long _distanceM = -1;
   String _instruction = "";
+  int _routeIndex = 0;    // 1-based selected route number (0 = unknown)
+  int _routeCount = 0;    // total alternatives (0 = single route)
+  long _totalM = -1;      // remaining total distance to destination (m)
   unsigned long _lastUpdateMs = 0;
   String _rxBuffer; // Partial incoming line (guarded by _mutex)
 };

@@ -42,6 +42,7 @@ struct LiveView: View {
             }
             .padding()
         }
+        .background(RacingBackground())
         .navigationTitle("Live")
         .onReceive(live.$telemetry) { t in
             guard let t else { return }
@@ -60,11 +61,13 @@ struct LiveView: View {
     private var liveBadge: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(live.connected ? .green : .gray)
+                .fill(live.connected ? Color.neonGreen : Color.gray)
                 .frame(width: 10, height: 10)
+                .neonGlow(live.connected ? .neonGreen : .clear, radius: 6)
             Text(live.connected ? "DEVICE LIVE" : "TIDAK TERHUBUNG")
-                .font(.caption).bold()
-                .tracking(1)
+                .font(.caption.weight(.bold))
+                .tracking(1.5)
+                .foregroundColor(live.connected ? .neonGreen : .secondary)
             Spacer()
             if let t = live.lastUpdated {
                 Text(t, style: .time)
@@ -95,7 +98,11 @@ struct LiveView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+        .background(
+            RacingCard(accent: .neonRed) {
+                Color.clear
+            }
+        )
     }
 
     // MARK: - Navigasi
@@ -124,19 +131,29 @@ struct LiveView: View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .stroke(Color(.systemGray5), lineWidth: 12)
+                    .fill(RacingTheme.card.opacity(0.5))
+                Circle()
+                    .stroke(RacingTheme.cardBorderDark, lineWidth: 12)
                 Circle()
                     .trim(from: 0, to: speedFraction)
-                    .stroke(AngularGradient(gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                    .stroke(AngularGradient(gradient: Gradient(colors: [.neonGreen, .neonYellow, .neonOrange, .neonRed]),
                                             center: .center),
                             style: StrokeStyle(lineWidth: 12, lineCap: .round))
                     .rotationEffect(.degrees(-90))
+                    .shadow(color: speedFraction > 0.85 ? Color.neonRed.opacity(0.8) : Color.neonOrange.opacity(0.6),
+                            radius: 10)
+                // Penanda 0% (grid ala panel balap)
+                Circle()
+                    .stroke(RacingTheme.cardBorderDark, style: StrokeStyle(lineWidth: 1, dash: [2, 6]))
+                    .padding(14)
                 VStack(spacing: 2) {
                     Text("\(Int(live.telemetry?.speed ?? 0))")
-                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .font(.racingDigits(56))
                         .foregroundColor(.white)
+                        .neonGlow(speedFraction > 0.85 ? .neonRed : .neonOrange, radius: 10)
                     Text("km/h")
-                        .font(.caption)
+                        .font(.caption.weight(.bold))
+                        .tracking(1.5)
                         .foregroundColor(.secondary)
                 }
             }
@@ -150,21 +167,39 @@ struct LiveView: View {
     }
 
     private var rpmBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("RPM").font(.caption).bold().foregroundColor(.secondary)
-                Spacer()
-                Text("\(Int(live.telemetry?.rpm ?? 0))").font(.subheadline).bold().foregroundColor(.white)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.systemGray5))
-                    Capsule()
-                        .fill(LinearGradient(colors: [.cyan, .purple], startPoint: .leading, endPoint: .trailing))
-                        .frame(width: geo.size.width * rpmFraction)
+        RacingCard(accent: .neonCyan) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("RPM")
+                        .font(.caption.weight(.bold))
+                        .tracking(1.5)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(Int(live.telemetry?.rpm ?? 0))")
+                        .font(.racingDigits(18))
+                        .foregroundColor(.neonCyan)
+                        .neonGlow(.neonCyan, radius: 6)
                 }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(RacingTheme.cardBorderDark)
+                        Capsule()
+                            .fill(LinearGradient(colors: [.neonCyan, .neonMagenta], startPoint: .leading, endPoint: .trailing))
+                            .frame(width: geo.size.width * rpmFraction)
+                            .shadow(color: .neonCyan.opacity(0.6), radius: 6)
+                        // Zona shift light: 15% terakhir
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: geo.size.width * 0.15)
+                            .overlay(
+                                Capsule().stroke(Color.neonRed.opacity(0.8), lineWidth: 1.5)
+                            )
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+                .frame(height: 12)
             }
-            .frame(height: 10)
+            .padding(12)
         }
     }
 
@@ -182,13 +217,10 @@ struct LiveView: View {
         ]
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             ForEach(grid, id: \.0) { title, value in
-                VStack(spacing: 4) {
-                    Text(title).font(.caption2).foregroundColor(.secondary)
-                    Text(value).font(.headline).foregroundColor(.white)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
+                RacingStat(label: title,
+                           value: value,
+                           color: title == "SATELIT" ? .neonCyan : .white,
+                           glowColor: title == "BATERAI" ? .neonYellow : .neonOrange)
             }
         }
     }
@@ -229,24 +261,24 @@ struct LiveView: View {
     }
 
     private var dragReadout: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Drag Live").font(.headline)
-                Spacer()
-                Text(live.drag.status.rawValue)
-                    .font(.caption).bold()
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(dragStatusColor))
+        RacingCard(accent: .neonRed, glow: true) {
+            VStack(spacing: 8) {
+                HStack {
+                    Text("DRAG LIVE")
+                        .font(.headline.weight(.bold))
+                        .tracking(1)
+                    Spacer()
+                    RacingBadge(text: live.drag.status.rawValue.uppercased(), color: dragStatusColor)
+                }
+                HStack {
+                    stat("0-60", live.drag.t0to60)
+                    stat("0-100", live.drag.t0to100)
+                    stat("100-200", live.drag.t100to200)
+                    stat("402 m", live.drag.t402m)
+                }
             }
-            HStack {
-                stat("0-60", live.drag.t0to60)
-                stat("0-100", live.drag.t0to100)
-                stat("100-200", live.drag.t100to200)
-                stat("402 m", live.drag.t402m)
-            }
+            .padding(12)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
 
     private var dragStatusColor: Color {
@@ -271,43 +303,51 @@ struct LiveView: View {
     // MARK: - Drag mode
 
     private var dragContent: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .stroke(Color(.systemGray5), lineWidth: 10)
-                Circle()
-                    .trim(from: 0, to: speedFraction)
-                    .stroke(.red, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                VStack(spacing: 2) {
-                    Text("\(Int(live.telemetry?.speed ?? 0))")
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("km/h").font(.caption).foregroundColor(.secondary)
+        RacingCard(accent: .neonRed, glow: true) {
+            VStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(RacingTheme.card.opacity(0.5))
+                    Circle()
+                        .stroke(RacingTheme.cardBorderDark, lineWidth: 10)
+                    Circle()
+                        .trim(from: 0, to: speedFraction)
+                        .stroke(Color.neonRed, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .shadow(color: .neonRed.opacity(0.8), radius: 10)
+                    VStack(spacing: 2) {
+                        Text("\(Int(live.telemetry?.speed ?? 0))")
+                            .font(.racingDigits(64))
+                            .foregroundColor(.white)
+                            .neonGlow(.neonRed, radius: 10)
+                        Text("km/h")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.5)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .frame(width: 220, height: 220)
+
+                Text("Jarak: \(Int(live.drag.distance)) m")
+                    .font(.title3.weight(.bold))
+                    .fontDesign(.rounded)
+                    .monospacedDigit()
+
+                RacingBadge(text: live.drag.status.rawValue.uppercased(), color: dragStatusColor)
+
+                HStack {
+                    stat("0-60", live.drag.t0to60)
+                    stat("0-100", live.drag.t0to100)
+                    stat("100-200", live.drag.t100to200)
+                }
+
+                stat("402 m", live.drag.t402m)
+
+                Text("Otomatis: mulai saat kecepatan \u{2265}5 km/h, selesai <3 km/h.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
-            .frame(width: 220, height: 220)
-
-            Text("Jarak: \(Int(live.drag.distance)) m")
-                .font(.title3).bold()
-
-            Text(live.drag.status.rawValue)
-                .font(.headline)
-                .foregroundColor(dragStatusColor)
-
-            HStack {
-                stat("0-60", live.drag.t0to60)
-                stat("0-100", live.drag.t0to100)
-                stat("100-200", live.drag.t100to200)
-            }
-
-            stat("402 m", live.drag.t402m)
-
-            Text("Otomatis: mulai saat kecepatan \u{2265}5 km/h, selesai <3 km/h.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            .padding(16)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
 }

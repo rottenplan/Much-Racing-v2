@@ -20,18 +20,49 @@ final class RouteManager: ObservableObject {
     @Published var route: MKRoute?
     @Published var routeSummary = ""
     @Published var steps: [NavStep] = []
+    // Seluruh rute hasil perhitungan (rute alternatif ala Google Maps).
+    // Format 0 adalah rute bawaan; pengendara bisa memilih yang lain.
+    @Published var routes: [MKRoute] = []
+    @Published var selectedRouteIndex = 0
+
+    // Preferensi rute ala Google Maps: otomatis disimpan (UserDefaults) agar
+    // konsisten di semua tempat yang menghitung rute (Navigasi, Live, Setelan).
+    @Published var avoidTolls = UserDefaults.standard.bool(forKey: "route.avoidTolls") {
+        didSet { UserDefaults.standard.set(avoidTolls, forKey: "route.avoidTolls") }
+    }
+    @Published var avoidHighways = UserDefaults.standard.bool(forKey: "route.avoidHighways") {
+        didSet { UserDefaults.standard.set(avoidHighways, forKey: "route.avoidHighways") }
+    }
 
     func reset() {
         route = nil
         routeSummary = ""
         steps = []
+        routes = []
+        selectedRouteIndex = 0
         errorMessage = nil
         isComputing = false
+    }
+
+    // Pilih salah satu rute alternatif; mengisi route/steps/summary aktif.
+    func selectRoute(at index: Int) {
+        guard index >= 0, index < routes.count else { return }
+        selectedRouteIndex = index
+        let chosen = routes[index]
+        route = chosen
+        steps = buildSteps(from: chosen)
+        routeSummary = summary(for: chosen)
     }
 
     // Cari tempat tujuan lewat pencarian lokal MapKit (tanpa API key).
     func searchDestination(_ query: String,
                            near center: CLLocationCoordinate2D) async throws -> MKMapItem? {
+        try await searchPlaces(query, near: center).first
+    }
+
+    // Daftar hasil pencarian tempat (untuk picker ala Google Maps).
+    func searchPlaces(_ query: String,
+                      near center: CLLocationCoordinate2D) async throws -> [MKMapItem] {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
         request.region = MKCoordinateRegion(center: center,
@@ -44,7 +75,7 @@ final class RouteManager: ObservableObject {
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume(returning: response?.mapItems.first)
+                    continuation.resume(returning: response?.mapItems ?? [])
                 }
             }
         }
@@ -57,7 +88,12 @@ final class RouteManager: ObservableObject {
         request.source = fromItem
         request.destination = toItem
         request.transportType = .automobile
-        request.requestsAlternateRoutes = false
+        // Minta rute alternatif supaya pengendara bisa membandingkan (ala Google Maps).
+        request.requestsAlternateRoutes = true
+
+        // Terapkan preferensi "hindari" ala Google Maps (MapKit: iOS 16+).
+        request.tollPreference = avoidTolls ? .avoid : .any
+        request.highwayPreference = avoidHighways ? .avoid : .any
 
         let directions = MKDirections(request: request)
         let response: MKDirections.Response =
@@ -73,17 +109,21 @@ final class RouteManager: ObservableObject {
                 }
             }
 
-        guard let firstRoute = response.routes.first else { return false }
+        guard !response.routes.isEmpty else { return false }
 
-        route = firstRoute
-        steps = buildSteps(from: firstRoute)
-        routeSummary = String(format: "%.1f km • %d menit",
-                              firstRoute.distance / 1000.0,
-                              Int(firstRoute.expectedTravelTime / 60))
+        routes = response.routes
+        selectedRouteIndex = 0
+        selectRoute(at: 0)
         return true
     }
 
     // MARK: - Konversi langkah MapKit -> NavStep dengan icon manuver
+
+    private func summary(for r: MKRoute) -> String {
+        String(format: "%.1f km • %d menit",
+               r.distance / 1000.0,
+               Int(r.expectedTravelTime / 60))
+    }
 
     private func buildSteps(from route: MKRoute) -> [NavStep] {
         let raw = route.steps

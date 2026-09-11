@@ -22,6 +22,7 @@ struct SessionsView: View {
             }
         }
         .navigationTitle("Sesi")
+        .background(RacingBackground())
         .navigationDestination(isPresented: $showDetail) {
             if let a = analysis {
                 SessionDetailView(analysis: a)
@@ -42,48 +43,65 @@ struct SessionsView: View {
                 open(file)
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 3) {
+                    Image(systemName: file.name.uppercased().contains("DRAG") ? "flag.checkered" : "timer")
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(file.name.uppercased().contains("DRAG") ? .neonRed : .neonCyan)
+                        .frame(width: 34)
+                        .neonGlow(file.name.uppercased().contains("DRAG") ? .neonRed : .neonCyan, radius: 5)
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(file.name)
-                            .font(.subheadline).bold()
-                            .foregroundColor(.primary)
-                        Text("\(file.size) • \(file.name.uppercased().contains("DRAG") ? "Drag" : "Track")")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                        HStack(spacing: 6) {
+                            RacingBadge(text: file.name.uppercased().contains("DRAG") ? "DRAG" : "TRACK",
+                                        color: file.name.uppercased().contains("DRAG") ? .neonRed : .neonCyan)
+                            Text(file.size)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     Spacer()
                     if downloadingPath == file.path {
                         ProgressView()
                     } else {
                         Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.neonOrange)
                     }
                 }
             }
             .disabled(downloadingPath != nil)
+            .listRowBackground(RacingTheme.card)
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "externaldrive.badge.clock")
-                .font(.system(size: 44))
-                .foregroundColor(.secondary)
-            Text("Belum ada sesi")
-                .font(.headline)
-            Text("Hubungkan iPhone ke WiFi AP device (\u{201C}MuchRacing-GPS\u{201D} / 12345678) lalu tarik untuk memuat daftar sesi dari SD card.")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            Button {
-                Task { await load(force: true) }
-            } label: {
-                Label("Muat Ulang", systemImage: "arrow.clockwise")
+        RacingCard(accent: .neonOrange, glow: true) {
+            VStack(spacing: 14) {
+                Image(systemName: "externaldrive.badge.clock")
+                    .font(.system(size: 44))
+                    .foregroundColor(.neonOrange)
+                    .neonGlow(.neonOrange, radius: 8)
+                Text("BELUM ADA SESI")
+                    .font(.headline.weight(.bold))
+                    .tracking(1)
+                Text("Hubungkan iPhone ke WiFi AP device (\u{201C}MuchRacing-GPS\u{201D} / 12345678) lalu tarik untuk memuat daftar sesi dari SD card.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                Button {
+                    Task { await load(force: true) }
+                } label: {
+                    Label("Muat Ulang", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.neonOrange)
             }
-            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+            .padding(24)
         }
-        .padding(24)
     }
 
     private func load(force: Bool = false) async {

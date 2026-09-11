@@ -104,6 +104,9 @@ void NavigationManager::clearRoute() {
     _maneuver = MANEUVER_STRAIGHT;
     _distanceM = -1;
     _instruction = "";
+    _routeIndex = 0;
+    _routeCount = 0;
+    _totalM = -1;
     _rxBuffer = "";
     xSemaphoreGive(s_lock);
   }
@@ -162,6 +165,9 @@ void NavigationManager::parseJson(const String &line, NavSource source) {
     _maneuver = MANEUVER_STRAIGHT;
     _distanceM = -1;
     _instruction = "";
+    _routeIndex = 0;
+    _routeCount = 0;
+    _totalM = -1;
     _source = source;
     return;
   } else if (strcmp(event, "arrive") == 0) {
@@ -169,6 +175,9 @@ void NavigationManager::parseJson(const String &line, NavSource source) {
     _maneuver = MANEUVER_ARRIVE;
     _distanceM = 0;
     _instruction = doc["text"] | "ARRIVED";
+    _routeIndex = doc["route"] | _routeIndex;
+    _routeCount = doc["routes"] | _routeCount;
+    _totalM = 0;
     _source = source;
     _lastUpdateMs = millis();
     return;
@@ -182,6 +191,9 @@ void NavigationManager::parseJson(const String &line, NavSource source) {
   _distanceM = doc["dist"] | -1L;
   const char *text = doc["text"] | "";
   _instruction = String(text);
+  _routeIndex = doc["route"] | _routeIndex;
+  _routeCount = doc["routes"] | _routeCount;
+  _totalM = doc["total"] | -1L;
   _source = source;
   _lastUpdateMs = millis();
 }
@@ -226,6 +238,33 @@ int NavigationManager::getSource() {
   int v = NAV_SOURCE_NONE;
   if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
     v = (int)_source;
+    xSemaphoreGive(s_lock);
+  }
+  return v;
+}
+
+int NavigationManager::getRouteIndex() {
+  int v = 0;
+  if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
+    v = _routeIndex;
+    xSemaphoreGive(s_lock);
+  }
+  return v;
+}
+
+int NavigationManager::getRouteCount() {
+  int v = 0;
+  if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
+    v = _routeCount;
+    xSemaphoreGive(s_lock);
+  }
+  return v;
+}
+
+long NavigationManager::getTotalM() {
+  long v = -1;
+  if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
+    v = _totalM;
     xSemaphoreGive(s_lock);
   }
   return v;

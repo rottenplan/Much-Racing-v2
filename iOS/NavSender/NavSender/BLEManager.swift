@@ -51,10 +51,18 @@ final class BLEManager: NSObject, ObservableObject {
     @Published var status: Status = .idle
     @Published var lastSent: String = ""
     @Published var rxLog: String = ""
+    // Keadaan radio Bluetooth (BT mati / izin diblokir / siap) untuk UI "Hak Akses".
+    @Published private(set) var centralState: CBManagerState = .unknown
 
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
     private var rxCharacteristic: CBCharacteristic?
+
+    // Auto-reconnect: saat koneksi putus karena sinyal/gangguan, app mencoba
+    // scan ulang otomatis dengan jeda naik ("backoff"). Tidak aktif bila
+    // pengendara memutus koneksi sendiri.
+    private var reconnectTask: Task<Void, Never>?
+    private var suppressAutoReconnect = false
 
     override init() {
         super.init()
@@ -70,12 +78,16 @@ final class BLEManager: NSObject, ObservableObject {
 
     func scan() {
         guard central.state == .poweredOn else { return }
+        stopAutoReconnect()
         status = .scanning
         // Filter scan berdasarkan service UUID NUS -> lebih cepat & hemat baterai.
         central.scanForPeripherals(withServices: [kNavServiceUUID], options: nil)
     }
 
     func disconnect() {
+        // Putus oleh pengguna: jangan auto-scan ulang.
+        suppressAutoReconnect = true
+        stopAutoReconnect()
         if let peripheral {
             central.cancelPeripheralConnection(peripheral)
         }
@@ -86,13 +98,37 @@ final class BLEManager: NSObject, ObservableObject {
         lastSent = ""
     }
 
+    // MARK: - Auto-reconnect (backoff)
+
+    private func stopAutoReconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+    }
+
+    // Coba sambung ulang setelah jeda tertentu. Jeda makin panjang per
+    // percobaan (3s, 6s, 10s, ...) agar tidak membanjiri radio saat device
+    // benar-benar mati; berhenti otomatis bila status sudah connected.
+    private func scheduleReconnect(delay: TimeInterval = 3) {
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            guard !self.status.isConnected, self.central.state == .poweredOn else { return }
+            guard self.status != .scanning else { return }
+            self.scan()
+        }
+    }
+
     // Kirim satu baris JSON ke karakteristik RX. Data otomatis dipecah
     // sesuai MTU agar aman untuk baris yang panjang.
     // Baris selalu diakhiri '\n' karena firmware baru memproses baris
     // setelah menerima newline (lihat NavigationManager.cpp).
     func send(_ json: String) {
         guard let peripheral, let rxCharacteristic else {
-            status = .failed("Belum terhubung. Scan dulu.")
+            // Saat auto-reconnect berjalan, jangan timpa pesan "mencoba kembali".
+            if reconnectTask == nil {
+                status = .failed("Belum terhubung. Scan dulu.")
+            }
             return
         }
         var payload = json
@@ -132,6 +168,7 @@ final class BLEManager: NSObject, ObservableObject {
 extension BLEManager: CBCentralManagerDelegate {
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        centralState = central.state
         switch central.state {
         case .poweredOn:
             // Auto-scan hanya saat app pertama kali dibuka (status masih idle).
@@ -169,13 +206,23 @@ extension BLEManager: CBCentralManagerDelegate {
                         didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
         status = .failed("Gagal terhubung: \(error?.localizedDescription ?? "tidak diketahui")")
+        if !suppressAutoReconnect {
+            scheduleReconnect()
+        }
     }
 
     func centralManager(_ central: CBCentralManager,
                         didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
         rxCharacteristic = nil
-        status = .failed("Terputus (\(error?.localizedDescription ?? "oleh device")). Ketuk Scan untuk konek lagi.")
+        let reason = error?.localizedDescription ?? "oleh device"
+        if suppressAutoReconnect {
+            suppressAutoReconnect = false
+            status = .failed("Terputus (\(reason)).")
+            return
+        }
+        status = .failed("Terputus (\(reason)). Mencoba kembali...")
+        scheduleReconnect(delay: 3)
     }
 }
 

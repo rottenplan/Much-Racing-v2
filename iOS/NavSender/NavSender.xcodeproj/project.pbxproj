@@ -25,6 +25,10 @@
 		1B0000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011 /* SettingsView.swift */; };
 		1B0000000000000000000011 /* NavigationRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000012 /* NavigationRootView.swift */; };
 		1B0000000000000000000012 /* NavigationPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000014 /* NavigationPanelView.swift */; };
+		1B0000000000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000015 /* Assets.xcassets */; };
+		1B0000000000000000000014 /* RacingTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000016 /* RacingTheme.swift */; };
+		1B0000000000000000000015 /* NavigationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000017 /* NavigationSession.swift */; };
+		1B0000000000000000000016 /* RouteOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000018 /* RouteOptionsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +52,10 @@
 		1A0000000000000000000012 /* NavigationRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRootView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1A0000000000000000000014 /* NavigationPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationPanelView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A0000000000000000000016 /* RacingTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RacingTheme.swift; sourceTree = "<group>"; };
+		1A0000000000000000000017 /* NavigationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationSession.swift; sourceTree = "<group>"; };
+		1A0000000000000000000018 /* RouteOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteOptionsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +85,7 @@
 				1A0000000000000000000003 /* BLEManager.swift */,
 				1A0000000000000000000004 /* RouteManager.swift */,
 				1A0000000000000000000005 /* LocationTracker.swift */,
+				1A0000000000000000000017 /* NavigationSession.swift */,
 				1A0000000000000000000006 /* NavigationSessionView.swift */,
 				1A0000000000000000000007 /* ManualTestSection.swift */,
 				1A0000000000000000000009 /* Models.swift */,
@@ -90,6 +99,9 @@
 				1A0000000000000000000011 /* SettingsView.swift */,
 				1A0000000000000000000012 /* NavigationRootView.swift */,
 				1A0000000000000000000014 /* NavigationPanelView.swift */,
+				1A0000000000000000000018 /* RouteOptionsView.swift */,
+				1A0000000000000000000016 /* RacingTheme.swift */,
+				1A0000000000000000000015 /* Assets.xcassets */,
 				1A0000000000000000000013 /* Info.plist */,
 			);
 			path = NavSender;
@@ -157,13 +169,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		1D0000000000000000000003 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+1D0000000000000000000003 /* Resources */ = {
+		isa = PBXResourcesBuildPhase;
+		buildActionMask = 2147483647;
+		files = (
+			1B0000000000000000000013 /* Assets.xcassets in Resources */,
+		);
+		runOnlyForDeploymentPostprocessing = 0;
+	};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -189,6 +202,9 @@
 				1B0000000000000000000010 /* SettingsView.swift in Sources */,
 				1B0000000000000000000011 /* NavigationRootView.swift in Sources */,
 				1B0000000000000000000012 /* NavigationPanelView.swift in Sources */,
+				1B0000000000000000000014 /* RacingTheme.swift in Sources */,
+				1B0000000000000000000015 /* NavigationSession.swift in Sources */,
+				1B0000000000000000000016 /* RouteOptionsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -314,6 +330,7 @@
 		200000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -337,6 +354,7 @@ INFOPLIST_FILE = "NavSender/Info.plist";
 		200000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

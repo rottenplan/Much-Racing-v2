@@ -379,6 +379,9 @@ void NavigationScreen::onShow() {
   _lastManeuver = -2;
   _lastDistance = -2;
   _lastInstruction = "";
+  _lastRouteIndex = -1;
+  _lastRouteCount = -1;
+  _lastTotalM = -2;
   _lastConnected = false;
   _lastActive = false;
   _lastHasBt = false;
@@ -420,10 +423,16 @@ void NavigationScreen::update() {
   int maneuver = nav.getManeuver();
   long distance = nav.getDistanceM();
   String instruction = nav.getInstruction();
+  int routeIndex = nav.getRouteIndex();
+  int routeCount = nav.getRouteCount();
+  long totalM = nav.getTotalM();
 
   bool dataChanged = (maneuver != _lastManeuver || distance != _lastDistance ||
-                      instruction != _lastInstruction || !_lastActive ||
-                      connected != _lastConnected);
+                      instruction != _lastInstruction ||
+                      routeIndex != _lastRouteIndex ||
+                      routeCount != _lastRouteCount ||
+                      totalM != _lastTotalM ||
+                      !_lastActive || connected != _lastConnected);
 
   if (dataChanged) {
     if (maneuver != _lastManeuver && _lastManeuver != -2 &&
@@ -434,6 +443,9 @@ void NavigationScreen::update() {
     _lastManeuver = maneuver;
     _lastDistance = distance;
     _lastInstruction = instruction;
+    _lastRouteIndex = routeIndex;
+    _lastRouteCount = routeCount;
+    _lastTotalM = totalM;
     _lastActive = true;
     _lastConnected = connected;
     drawRoute();
@@ -454,6 +466,9 @@ void NavigationScreen::drawAll(bool force) {
     _lastManeuver = nav.getManeuver();
     _lastDistance = nav.getDistanceM();
     _lastInstruction = nav.getInstruction();
+    _lastRouteIndex = nav.getRouteIndex();
+    _lastRouteCount = nav.getRouteCount();
+    _lastTotalM = nav.getTotalM();
     drawRoute();
   } else {
     drawIdle();
@@ -629,6 +644,33 @@ void NavigationScreen::drawRoute() {
   tft->setTextColor(COLOR_ACCENT, bg);
   tft->setTextDatum(TL_DATUM);
   tft->drawString("< BACK", 8, CONTENT_Y + CONTENT_H - 23);
+
+  // Rute alternatif terpilih + total sisa jarak ke tujuan (bawah tengah)
+  int routeIndex = nav.getRouteIndex();
+  int routeCount = nav.getRouteCount();
+  long totalM = nav.getTotalM();
+  String via;
+  if (routeCount > 1) {
+    via = "RUTE " + String(routeIndex) + "/" + String(routeCount);
+  }
+  if (totalM >= 0) {
+    if (via.length() > 0)
+      via += "  |  ";
+    if (totalM >= 1000) {
+      char buf[16];
+      snprintf(buf, sizeof(buf), "%.1f KM", totalM / 1000.0);
+      via += "TOTAL ";
+      via += buf;
+    } else {
+      via += "TOTAL " + String(totalM) + " M";
+    }
+  }
+  if (via.length() > 0) {
+    tft->setTextColor(COLOR_HIGHLIGHT, bg);
+    tft->setTextDatum(MC_DATUM);
+    tft->drawString(via, SCREEN_WIDTH / 2, CONTENT_Y + CONTENT_H - 23);
+  }
+
   drawStatusChip(connected);
 
   // FONT SAFETY

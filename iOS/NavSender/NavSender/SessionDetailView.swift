@@ -27,6 +27,7 @@ struct SessionDetailView: View {
             }
             .padding()
         }
+        .background(RacingBackground())
         .navigationTitle(analysis.name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { fitRegion() }
@@ -35,26 +36,30 @@ struct SessionDetailView: View {
     // MARK: - Header
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(analysis.sessionType)
-                    .font(.caption).bold()
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(analysis.sessionType == "DRAG" ? Color.red.opacity(0.25) : Color.cyan.opacity(0.25)))
-                Spacer()
-                Text(analysis.date, style: .date)
+        RacingCard(accent: analysis.sessionType == "DRAG" ? .neonRed : .neonCyan, glow: true) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    RacingBadge(text: analysis.sessionType,
+                                color: analysis.sessionType == "DRAG" ? .neonRed : .neonCyan,
+                                icon: analysis.sessionType == "DRAG" ? "flag.checkered" : "timer")
+                    Spacer()
+                    Text(analysis.date, style: .date)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Text(analysis.name)
+                    .font(.title3.weight(.bold))
+                    .fontDesign(.rounded)
+                    .monospacedDigit()
+                Text(String(format: "%.1f detik data", analysis.totalTime))
                     .font(.caption)
                     .foregroundColor(.secondary)
+                CheckeredStrip()
+                    .padding(.top, 2)
             }
-            Text(analysis.name)
-                .font(.title3).bold()
-            Text(String(format: "%.1f detik data", analysis.totalTime))
-                .font(.caption)
-                .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
 
     // MARK: - Statistik
@@ -68,13 +73,10 @@ struct SessionDetailView: View {
         ]
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             ForEach(stats, id: \.0) { title, value in
-                VStack(spacing: 4) {
-                    Text(title).font(.caption2).foregroundColor(.secondary)
-                    Text(value).font(.headline)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
+                RacingStat(label: title,
+                           value: value,
+                           color: title == "MAKS" ? .neonOrange : (title == "RPM MAX" ? .neonRed : .white),
+                           glowColor: title == "MAKS" ? .neonOrange : (title == "RPM MAX" ? .neonRed : .neonCyan))
             }
         }
     }
@@ -82,43 +84,45 @@ struct SessionDetailView: View {
     // MARK: - Lap
 
     private var lapsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Lap Times").font(.headline)
-                Spacer()
-                if let best = analysis.bestLapMs {
-                    Text("Best \(formatLap(best))")
-                        .font(.caption).bold()
-                        .foregroundColor(.green)
-                }
-            }
-            ForEach(analysis.laps) { lap in
+        RacingCard(accent: .neonYellow, glow: true) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Lap \(lap.lapNumber)")
-                        .font(.subheadline)
+                    Text("LAP TIMES")
+                        .font(.headline.weight(.bold))
+                        .tracking(1)
                     Spacer()
-                    if let s3 = lap.s3Ms {
-                        Text("S1 \(formatMs(s3))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    Text(formatLap(lap.timeMs))
-                        .font(.subheadline).bold()
-                    if let best = analysis.bestLapMs, lap.timeMs == best {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                            .foregroundColor(.yellow)
-                    } else {
-                        Text(String(format: "+%.2f", analysis.gapToBest(lap: lap)))
-                            .font(.caption)
-                            .foregroundColor(.orange)
+                    if let best = analysis.bestLapMs {
+                        RacingBadge(text: "BEST \(formatLap(best))", color: .neonGreen, icon: "star.fill")
                     }
                 }
-                Divider()
+                ForEach(analysis.laps) { lap in
+                    HStack {
+                        Text("Lap \(lap.lapNumber)")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        if let s3 = lap.s3Ms {
+                            Text("S1 \(formatMs(s3))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Text(formatLap(lap.timeMs))
+                            .font(.racingDigits(16))
+                        if let best = analysis.bestLapMs, lap.timeMs == best {
+                            Image(systemName: "star.fill")
+                                .font(.caption)
+                                .foregroundColor(.neonYellow)
+                                .neonGlow(.neonYellow, radius: 5)
+                        } else {
+                            Text(String(format: "+%.2f", analysis.gapToBest(lap: lap)))
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.neonOrange)
+                        }
+                    }
+                    Divider().overlay(Color.neonOrange.opacity(0.15))
+                }
             }
+            .padding(12)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
 
     // MARK: - Drag
@@ -129,17 +133,20 @@ struct SessionDetailView: View {
     }
 
     private var dragCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Drag Summary").font(.headline)
-            HStack {
-                dragStat("0-60", analysis.drag.time0to60)
-                dragStat("0-100", analysis.drag.time0to100)
-                dragStat("100-200", analysis.drag.time100to200)
-                dragStat("402 m", analysis.drag.time402m)
+        RacingCard(accent: .neonRed, glow: true) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("DRAG SUMMARY")
+                    .font(.headline.weight(.bold))
+                    .tracking(1)
+                HStack {
+                    dragStat("0-60", analysis.drag.time0to60)
+                    dragStat("0-100", analysis.drag.time0to100)
+                    dragStat("100-200", analysis.drag.time100to200)
+                    dragStat("402 m", analysis.drag.time402m)
+                }
             }
+            .padding(12)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
 
     private func dragStat(_ label: String, _ value: Double?) -> some View {
@@ -154,28 +161,38 @@ struct SessionDetailView: View {
     // MARK: - Grafik kecepatan
 
     private var speedChartCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Kecepatan").font(.headline)
-            Chart {
-                ForEach(Array(analysis.points.enumerated()), id: \.offset) { index, p in
-                    LineMark(x: .value("Waktu", index),
-                             y: .value("Speed", p.speed))
-                        .foregroundStyle(.orange)
+        RacingCard(accent: .neonOrange) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("KECEPATAN")
+                        .font(.headline.weight(.bold))
+                        .tracking(1)
+                    Spacer()
+                    RacingBadge(text: "km/h", color: .neonOrange)
                 }
+                Chart {
+                    ForEach(Array(analysis.points.enumerated()), id: \.offset) { index, p in
+                        LineMark(x: .value("Waktu", index),
+                                 y: .value("Speed", p.speed))
+                            .foregroundStyle(Color.neonOrange)
+                            .interpolationMethod(.catmullRom)
+                    }
+                }
+                .frame(height: 140)
+                .chartYAxisLabel("km/h")
             }
-            .frame(height: 140)
-            .chartYAxisLabel("km/h")
+            .padding(12)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
 
     // MARK: - Replay peta
 
     private var replayMapCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Replay Rute")
-                .font(.headline)
+        RacingCard(accent: .neonCyan) {
+            VStack(alignment: .leading, spacing: 8) {
+            Text("REPLAY RUTE")
+                .font(.headline.weight(.bold))
+                .tracking(1)
             if let region {
                 Map(position: .constant(.region(region))) {
                     let segments = speedSegments
@@ -198,21 +215,23 @@ struct SessionDetailView: View {
                 if analysis.points.count > 1 {
                     HStack(spacing: 6) {
                         Text("Scrub")
-                            .font(.caption)
+                            .font(.caption.weight(.semibold))
                             .foregroundColor(.secondary)
                         Slider(value: $scrub, in: 0...Double(analysis.points.count - 1), step: 1)
+                            .tint(.neonCyan)
                     }
                     if let pt = scrubPoint {
                         Text("Speed \(Int(pt.speed)) km/h • RPM \(Int(pt.rpm)) • t +\(String(format: "%.1f", pt.time / 1000))s")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(.neonCyan)
+                            .monospacedDigit()
                     }
                 }
             }
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
     }
+}
 
     private var scrubIndex: Int {
         guard analysis.points.count > 0 else { return 0 }
@@ -279,6 +298,7 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
+        .tint(.neonOrange)
     }
 
     private func buildGPX(points: [TelemetryPoint], name: String) -> String {

@@ -9,6 +9,15 @@ final class LocationTracker: NSObject, ObservableObject {
     @Published var authorization: CLAuthorizationStatus = .notDetermined
     @Published var lastLocation: CLLocation?
 
+    var isAuthorized: Bool {
+        authorization == .authorizedWhenInUse || authorization == .authorizedAlways
+    }
+
+    // Izin lokasi benar-benar diblokir (ditolak / dikunci) — perlu tindakan di Settings.
+    var isBlocked: Bool {
+        authorization == .denied || authorization == .restricted
+    }
+
     private let manager = CLLocationManager()
 
     override init() {
