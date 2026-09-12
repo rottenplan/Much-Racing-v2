@@ -1,5 +1,6 @@
 #include "WiFiManager.h"
 #include "BatteryManager.h"
+#include "NavigationManager.h"
 #include "SyncManager.h"
 #include "web_static.h"
 #include <ArduinoJson.h>
@@ -87,6 +88,21 @@ void WiFiManager::startAP() {
 }
 
 void WiFiManager::update() {
+  unsigned long now = millis();
+
+  // Telemetri live ke iPhone via BLE (push 1 Hz, terlepas dari koneksi
+  // internet / WiFi). Ini membuat phone bisa membaca semua data tanpa join
+  // AP "MuchRacing-GPS" — cukup kanal BLE "MuchRacing-Nav".
+  static unsigned long lastBlePush = 0;
+  if (_gps && now - lastBlePush >= 1000) {
+    lastBlePush = now;
+    String json = buildLiveJson();
+    if (!json.isEmpty() && json != "{}") {
+      navigationManager.pushLine("{\"event\":\"telemetry\",\"data\":" +
+                                 json + "}\n");
+    }
+  }
+
   if (!_enabled)
     return;
 
@@ -102,11 +118,9 @@ void WiFiManager::update() {
     }
   }
 
-  // Live Telemetry Push
+  // Live Telemetry Push (cloud / internet)
   static unsigned long lastLivePush = 0;
-  unsigned long now = millis();
-  if (_enabled && isConnected() && _gps && _gps->isFixed() &&
-      _liveTelemetryEnabled) {
+  if (_gps && isConnected() && _gps->isFixed() && _liveTelemetryEnabled) {
     if (now - lastLivePush >= 1000) { // Push every 1 second
       lastLivePush = now;
       BatteryManager &bat = BatteryManager::getInstance();
@@ -136,16 +150,10 @@ void WiFiManager::handleRoot() {
 
 #include "BatteryManager.h"
 
-// ... inside handleApiLive ...
-
-void WiFiManager::handleApiLive() {
-  // Serial.println("API Live: Request Received"); // Debug spam
-  if (!_gps) {
-    DEBUG_PRINTLN("API Live: Error - No GPS Linked!");
-    _server.send(500, "application/json",
-                 "{\"error\":\"No GPS Manager Linked\"}");
-    return;
-  }
+// Telemetri live dengan format yang sama dengan /api/live.
+String WiFiManager::buildLiveJson() {
+  if (!_gps)
+    return "{}";
 
   JsonDocument doc;
   doc["speed"] = _gps->getSpeedKmph();
@@ -163,6 +171,18 @@ void WiFiManager::handleApiLive() {
 
   String json;
   serializeJson(doc, json);
+  return json;
+}
+
+void WiFiManager::handleApiLive() {
+  if (!_gps) {
+    DEBUG_PRINTLN("API Live: Error - No GPS Linked!");
+    _server.send(500, "application/json",
+                 "{\"error\":\"No GPS Manager Linked\"}");
+    return;
+  }
+
+  String json = buildLiveJson();
   _server.sendHeader("Access-Control-Allow-Origin", "*");
   _server.send(200, "application/json", json);
 }

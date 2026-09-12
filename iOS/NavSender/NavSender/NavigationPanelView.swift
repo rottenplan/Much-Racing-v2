@@ -77,12 +77,6 @@ struct NavigationPanelView: View {
         let query = destQuery.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
 
-        guard ble.status.isConnected else {
-            errorText = "Hubungkan dulu ke MuchRacing-Nav melalui BLE (tab Navigasi atau Setelan)."
-            showError = true
-            return
-        }
-
         if location.authorization == .notDetermined {
             location.requestPermission()
             errorText = "Setujui izin lokasi yang muncul, lalu tekan 'Cari & Hitung Rute' lagi."
@@ -113,7 +107,7 @@ struct NavigationPanelView: View {
                     session.start()
                 }
             } catch {
-                errorText = "Gagal menghitung rute: \(error.localizedDescription)"
+                errorText = route.friendlyError(error)
                 showError = true
             }
         }
@@ -147,7 +141,7 @@ struct NavigationPanelView: View {
 
                 RouteOptionsView()
 
-                Label("Rute dihitung via internet — keluar sementara dari AP MuchRacing-GPS.", systemImage: "info.circle")
+                Label("Rute dihitung via internet — hitung saat online, rute otomatis disimpan lalu navigasi jalan lewat BLE tanpa internet.", systemImage: "info.circle")
                     .font(.footnote)
                     .foregroundColor(.neonYellow)
             }
@@ -181,7 +175,7 @@ struct NavigationPanelView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.neonGreen)
-                    .disabled(!ble.status.isConnected)
+                    .disabled(route.steps.isEmpty)
 
                     Button {
                         session.reset()
@@ -192,6 +186,12 @@ struct NavigationPanelView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(.neonRed)
+                }
+
+                if route.isSavedRoute {
+                    Label("Rute tersimpan — bisa dipakai offline lewat BLE tanpa internet.", systemImage: "bolt.fill")
+                        .font(.footnote)
+                        .foregroundColor(.neonGreen)
                 }
             }
             .padding(12)

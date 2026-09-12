@@ -66,7 +66,7 @@ struct NavigationSessionView: View {
     private var mapLayer: some View {
         Map(position: $camera) {
             // Casing putih + garis biru ala navigasi CarPlay.
-            if let poly = route.route?.polyline {
+            if let poly = route.polylineForDrawing {
                 MapPolyline(poly)
                     .stroke(.white, style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
                 MapPolyline(poly)
@@ -297,9 +297,9 @@ struct NavigationSessionView: View {
     // Estimasi jam tiba: proporsi sisa rute terhadap total rute × waktu tempuh.
     private var arrivalText: String {
         if session.hasArrived { return "Tiba" }
-        guard let r = route.route, r.distance > 0 else { return "Menghitung..." }
-        let fraction = min(1, session.remainingRouteMeters / r.distance)
-        let eta = Date().addingTimeInterval(r.expectedTravelTime * fraction)
+        guard route.distanceMeters > 0 else { return "Menghitung..." }
+        let fraction = min(1, session.remainingRouteMeters / route.distanceMeters)
+        let eta = Date().addingTimeInterval(route.travelSeconds * fraction)
         return "Tiba \(eta.formatted(date: .omitted, time: .shortened))"
     }
 

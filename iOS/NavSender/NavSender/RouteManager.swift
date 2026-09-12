@@ -10,6 +10,59 @@ struct NavStep: Identifiable {
     let distanceM: Int                   // jarak dari titik manuver sebelumnya
     let instruction: String
     let coordinate: CLLocationCoordinate2D // titik manuver (akhir langkah ini)
+
+    init(id: Int, icon: Int, distanceM: Int, instruction: String,
+         coordinate: CLLocationCoordinate2D) {
+        self.id = id
+        self.icon = icon
+        self.distanceM = distanceM
+        self.instruction = instruction
+        self.coordinate = coordinate
+    }
+}
+
+// MARK: - Snapshot rute tersimpan (untuk navigasi offline lewat BLE saja)
+//
+// Rute dihitung saat ada internet, lalu disimpan di UserDefaults agar bisa
+// dipakai lagi tanpa internet: langkah + garis rute + ringkasan cukup untuk
+// turn-by-turn via BLE (GPS iPhone tetap jalan tanpa jaringan apa pun).
+
+private struct StorableCoord: Codable {
+    let lat: Double
+    let lon: Double
+}
+
+private struct StorableStep: Codable {
+    let id: Int
+    let icon: Int
+    let distanceM: Int
+    let instruction: String
+    let lat: Double
+    let lon: Double
+
+    var navStep: NavStep {
+        NavStep(id: id, icon: icon, distanceM: distanceM,
+                instruction: instruction,
+                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+    }
+
+    init(step: NavStep) {
+        id = step.id
+        icon = step.icon
+        distanceM = step.distanceM
+        instruction = step.instruction
+        lat = step.coordinate.latitude
+        lon = step.coordinate.longitude
+    }
+}
+
+private struct SavedRoute: Codable {
+    let steps: [StorableStep]
+    let polyline: [StorableCoord]
+    let summary: String
+    let distanceMeters: Double
+    let travelSeconds: TimeInterval
+    let destinationName: String
 }
 
 @MainActor
@@ -24,6 +77,18 @@ final class RouteManager: ObservableObject {
     // Format 0 adalah rute bawaan; pengendara bisa memilih yang lain.
     @Published var routes: [MKRoute] = []
     @Published var selectedRouteIndex = 0
+
+    // Ringkasan rute aktif tanpa bergantung pada objek MKRoute yang hidup di
+    // memori. Diisi saat menghitung rute dan saat memuat rute tersimpan, supaya
+    // navigasi (ETA) & gambar peta tetap bisa berfungsi tanpa internet.
+    @Published var routePolyline: MKPolyline?
+    @Published var distanceMeters: Double = 0
+    @Published var travelSeconds: TimeInterval = 0
+    // true bila rute sedang dipakai berasal dari snapshot tersimpan (offline).
+    @Published var isSavedRoute = false
+    @Published var savedDestinationText: String?
+
+    private static let savedRouteKey = "route.saved"
 
     // Preferensi rute ala Google Maps: otomatis disimpan (UserDefaults) agar
     // konsisten di semua tempat yang menghitung rute (Navigasi, Live, Setelan).
@@ -40,8 +105,14 @@ final class RouteManager: ObservableObject {
         steps = []
         routes = []
         selectedRouteIndex = 0
+        routePolyline = nil
+        distanceMeters = 0
+        travelSeconds = 0
+        isSavedRoute = false
+        savedDestinationText = nil
         errorMessage = nil
         isComputing = false
+        UserDefaults.standard.removeObject(forKey: Self.savedRouteKey)
     }
 
     // Pilih salah satu rute alternatif; mengisi route/steps/summary aktif.
@@ -52,6 +123,12 @@ final class RouteManager: ObservableObject {
         route = chosen
         steps = buildSteps(from: chosen)
         routeSummary = summary(for: chosen)
+        routePolyline = chosen.polyline
+        distanceMeters = chosen.distance
+        travelSeconds = chosen.expectedTravelTime
+        isSavedRoute = false
+        savedDestinationText = nil
+        saveForOffline()
     }
 
     // Cari tempat tujuan lewat pencarian lokal MapKit (tanpa API key).
@@ -113,8 +190,86 @@ final class RouteManager: ObservableObject {
 
         routes = response.routes
         selectedRouteIndex = 0
+        savedDestinationText = toItem.name ?? "Tujuan"
         selectRoute(at: 0)
         return true
+    }
+
+    // MARK: - Simpan / pulihkan rute untuk navigasi offline (BLE saja)
+
+    // Gambar garis rute di peta: preferensi polyline tersimpan (offline),
+    // kalau belum ada pakai polyline dari MKRoute yang masih aktif.
+    var polylineForDrawing: MKPolyline? { routePolyline ?? route?.polyline }
+
+    func hasSavedRoute() -> Bool {
+        UserDefaults.standard.data(forKey: Self.savedRouteKey) != nil
+    }
+
+    // Simpan snapshot rute yang baru dihitung (saat masih online) supaya bisa
+    // dikembalikan tanpa internet kapan pun — mis. setelah app di-restart.
+    private func saveForOffline() {
+        guard let polyline = routePolyline, !steps.isEmpty else { return }
+        var coords: [StorableCoord] = []
+        let points = polyline.points()
+        for i in 0..<polyline.pointCount {
+            let c = points[i].coordinate
+            coords.append(StorableCoord(lat: c.latitude, lon: c.longitude))
+        }
+        let snapshot = SavedRoute(steps: steps.map(StorableStep.init),
+                                  polyline: coords,
+                                  summary: routeSummary,
+                                  distanceMeters: distanceMeters,
+                                  travelSeconds: travelSeconds,
+                                  destinationName: savedDestinationText ?? "Tujuan")
+        if let data = try? JSONEncoder().encode(snapshot) {
+            UserDefaults.standard.set(data, forKey: Self.savedRouteKey)
+        }
+    }
+
+    // Muat rute tersimpan (dipanggil saat app dibuka). Tidak menimpa rute yang
+    // masih aktif di memori kalau memang sudah ada.
+    func restoreSavedRoute() {
+        guard steps.isEmpty else { return }
+        guard let data = UserDefaults.standard.data(forKey: Self.savedRouteKey),
+              let snapshot = try? JSONDecoder().decode(SavedRoute.self, from: data),
+              !snapshot.steps.isEmpty else { return }
+
+        steps = snapshot.steps.map(\.navStep)
+        routeSummary = snapshot.summary
+        distanceMeters = snapshot.distanceMeters
+        travelSeconds = snapshot.travelSeconds
+        savedDestinationText = snapshot.destinationName
+        isSavedRoute = true
+
+        route = nil
+        routes = []
+        selectedRouteIndex = 0
+        let coords = snapshot.polyline.map {
+            CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)
+        }
+        routePolyline = coords.isEmpty ? nil : MKPolyline(coordinates: coords, count: coords.count)
+    }
+
+    // Pesan error yang ramah kalau internet sedang tidak tersedia (rute dihitung
+    // lewat server Apple Maps). Internet hanya dibutuhkan saat menghitung rute;
+    // navigasinya sendiri berjalan offline via BLE + GPS iPhone.
+    func friendlyError(_ error: Error) -> String {
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain {
+            switch ns.code {
+            case NSURLErrorNotConnectedToInternet,
+                 NSURLErrorInternationalRoamingOff,
+                 NSURLErrorCannotFindHost,
+                 NSURLErrorCannotConnectToHost,
+                 NSURLErrorNetworkConnectionLost,
+                 NSURLErrorTimedOut:
+                return "Tidak ada koneksi internet. Hitung rute dulu saat online "
+                    + "(WiFi/cellular, bukan AP MuchRacing-GPS), lalu simpan & "
+                    + "navigasi tetap bisa dipakai lewat BLE tanpa internet."
+            default: break
+            }
+        }
+        return "Gagal menghitung rute: \(error.localizedDescription)"
     }
 
     // MARK: - Konversi langkah MapKit -> NavStep dengan icon manuver

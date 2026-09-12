@@ -12,6 +12,13 @@ private let kNavTxUUID      = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA
 // Nama perangkat yang diiklankan firmware.
 private let kTargetName = "MuchRacing-Nav"
 
+// Pesan masuk dari device lewat TX (notify). Saat ini device mengirim telemetri
+// live sebagai {"event":"telemetry","data":{...}} satu baris JSON + '\n'.
+private struct InboundEvent: Decodable {
+    let event: String?
+    let data: LiveTelemetry?
+}
+
 @MainActor
 final class BLEManager: NSObject, ObservableObject {
 
@@ -53,6 +60,14 @@ final class BLEManager: NSObject, ObservableObject {
     @Published var rxLog: String = ""
     // Keadaan radio Bluetooth (BT mati / izin diblokir / siap) untuk UI "Hak Akses".
     @Published private(set) var centralState: CBManagerState = .unknown
+
+    // Callback telemetri live dari device (via BLE, bukan WiFi). Dipasang oleh
+    // ContentView agar LiveStore memakai data BLE saat kanal ini hidup.
+    var onTelemetry: ((LiveTelemetry) -> Void)?
+    var onDisconnected: (() -> Void)?
+    // Buffer baris RX: device mengirim pesan yang diakhiri '\n', bisa terpecah
+    // dalam beberapa notification (MTU). Diakumulasi dulu sampai baris utuh.
+    private var rxBuffer: String = ""
 
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
@@ -149,6 +164,23 @@ final class BLEManager: NSObject, ObservableObject {
         lastSent = json
     }
 
+    // Baris telemetri utuh dari device: iframe event "telemetry" -> diteruskan
+    // ke LiveStore; pesan lain dicatat saja ke rxLog.
+    private func handleLine(_ rawLine: String) {
+        let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { return }
+
+        if let data = line.data(using: .utf8),
+           let payload = try? JSONDecoder().decode(InboundEvent.self, from: data),
+           payload.event == "telemetry",
+           let telemetry = payload.data {
+            onTelemetry?(telemetry)
+            return
+        }
+
+        rxLog += rawLine + "\n"
+    }
+
     // Kirim satu langkah navigasi (icon + jarak + teks).
     func sendManeuver(icon: Int, distanceM: Int, text: String) {
         let escaped = text
@@ -219,9 +251,11 @@ extension BLEManager: CBCentralManagerDelegate {
         if suppressAutoReconnect {
             suppressAutoReconnect = false
             status = .failed("Terputus (\(reason)).")
+            onDisconnected?()
             return
         }
         status = .failed("Terputus (\(reason)). Mencoba kembali...")
+        onDisconnected?()
         scheduleReconnect(delay: 3)
     }
 }
@@ -263,13 +297,20 @@ extension BLEManager: CBPeripheralDelegate {
         }
     }
 
-    // Pesan yang dikirim device (TX / notify) — saat ini hanya dicatat di log.
+    // Pesan dari device (TX / notify). Device mengirim baris JSON yang diakhiri
+    // '\n', bisa terpecah dalam beberapa notification (MTU) — diakumulasi lalu
+    // diproses per baris utuh.
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?) {
         guard let value = characteristic.value, error == nil else { return }
-        let text = String(decoding: value, as: UTF8.self)
-        rxLog += text + "\n"
+        rxBuffer += String(decoding: value, as: UTF8.self)
+
+        while let nl = rxBuffer.firstIndex(of: "\n") {
+            let line = String(rxBuffer[..<nl])
+            rxBuffer.removeSubrange(rxBuffer.startIndex...nl)
+            handleLine(line)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral,

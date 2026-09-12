@@ -43,7 +43,6 @@ private:
 
   // Volt meter cache
   float _lastVolt = -1;
-  float _lastCurrent = -1;
 
   // Double tap detection
   unsigned long _lastTapTime = 0;

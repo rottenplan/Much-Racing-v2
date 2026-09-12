@@ -4,7 +4,6 @@
 
 #include "core/BatteryManager.h"
 #include "core/FeedbackManager.h"
-#include "core/INA219Manager.h"
 #include "core/IMUManager.h"
 #include "core/MQTTManager.h"
 #include "core/NavigationManager.h"
@@ -134,9 +133,6 @@ void setup() {
     splash->setLoadingStatus("Power System...");
   BatteryManager::getInstance().begin();
 
-  // INA219 Power Meter (dedicated Wire1 bus: SDA=8, SCL=9)
-  INA219Manager::getInstance().begin();
-
   // Link GPS to WiFi for Web API
   wifiManager.setGPS(&gpsManager);
 
@@ -229,7 +225,6 @@ void loop() {
     lastBackgroundTask = now;
     // imuManager.update() moved to FreeRTOS task (Core 0) to avoid I2C blocking
     BatteryManager::getInstance().update();
-    INA219Manager::getInstance().update();
     wifiManager.update();
     mqttManager.update();
     FeedbackManager::getInstance().update();

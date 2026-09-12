@@ -12,6 +12,7 @@ NavigationManager navigationManager;
 #define NAV_TX_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  // notify
 
 static NimBLEServer *s_server = nullptr;
+static NimBLECharacteristic *s_txChar = nullptr; // retained for pushLine()
 static SemaphoreHandle_t s_lock = nullptr;
 
 // ---------------------------------------------------------------------------
@@ -58,10 +59,12 @@ void NavigationManager::begin() {
   rx->setCallbacks(new NavWriteCallbacks());
   rx->setValue("");
 
-  // TX characteristic (notify) reserved for future ACK / keep-alive
+  // TX characteristic (notify): data dari device ke phone (telemetri live,
+  // ACK, event). Dipakai oleh pushLine().
   NimBLECharacteristic *tx = service->createCharacteristic(
       NAV_TX_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   tx->setValue("");
+  s_txChar = tx;
 
   service->start();
 
@@ -86,6 +89,26 @@ void NavigationManager::update() {
 
 bool NavigationManager::isConnected() {
   return _btOn && s_server != nullptr && s_server->getConnectedCount() > 0;
+}
+
+// ---------------------------------------------------------------------------
+// TX: kirim data ke phone. Baris harus diakhiri '\n'. Nilai dipecah per chunk
+// yang muat dalam satu ATT notification (MTU BLE iOS umumnya 185 byte).
+// ---------------------------------------------------------------------------
+void NavigationManager::pushLine(const String &line) {
+  if (!isConnected() || s_txChar == nullptr)
+    return;
+  if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) != pdTRUE)
+    return;
+
+  const size_t chunkSize = 170; // < 185 (MTU iOS) - 3 byte ATT header
+  for (size_t offset = 0; offset < line.length(); offset += chunkSize) {
+    size_t count = min(chunkSize, line.length() - offset);
+    s_txChar->setValue((const uint8_t *)line.c_str() + offset, count);
+    s_txChar->notify();
+  }
+
+  xSemaphoreGive(s_lock);
 }
 
 bool NavigationManager::hasActiveRoute() {

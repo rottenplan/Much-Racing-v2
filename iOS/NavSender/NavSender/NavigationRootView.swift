@@ -84,7 +84,7 @@ struct NavigationRootView: View {
                                     style: StrokeStyle(lineWidth: isSelected ? 8 : 4,
                                                        lineCap: .round, lineJoin: .round))
                     }
-                } else if let poly = route.route?.polyline {
+                } else if let poly = route.polylineForDrawing {
                     MapPolyline(poly)
                         .stroke(.white, style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
                     MapPolyline(poly)
@@ -296,12 +296,6 @@ struct NavigationRootView: View {
     private func computeRouteToDestination() {
         guard let destination else { return }
 
-        guard ble.status.isConnected else {
-            errorText = "Hubungkan dulu ke MuchRacing-Nav dengan tombol Scan."
-            showError = true
-            return
-        }
-
         if location.authorization == .notDetermined {
             location.requestPermission()
             errorText = "Setujui izin lokasi yang muncul, lalu tekan 'Rute ke sini' lagi."
@@ -328,7 +322,7 @@ struct NavigationRootView: View {
                     showNavSession = true
                 }
             } catch {
-                errorText = "Gagal menghitung rute: \(error.localizedDescription)"
+                errorText = route.friendlyError(error)
                 showError = true
             }
         }
@@ -359,7 +353,7 @@ struct NavigationRootView: View {
                 }
 
                 if live.connected && route.steps.isEmpty {
-                    Label("Catatan: hitung rute butuh internet. Keluar dulu dari AP MuchRacing-GPS.", systemImage: "info.circle")
+                    Label("Catatan: rute dihitung via internet, lalu otomatis disimpan untuk navigasi offline lewat BLE.", systemImage: "info.circle")
                         .font(.footnote)
                         .foregroundColor(.neonYellow)
                 }
@@ -447,7 +441,7 @@ struct NavigationRootView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.neonCyan)
-                    .disabled(!ble.status.isConnected || route.isComputing)
+                    .disabled(route.isComputing)
 
                     Button {
                         setDestination(at: location.lastLocation?.coordinate ?? dest.placemark.coordinate)
@@ -497,7 +491,7 @@ struct NavigationRootView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.neonGreen)
-                .disabled(!ble.status.isConnected)
+                .disabled(route.steps.isEmpty)
 
                 Button {
                     sessionResetAndClear()
@@ -507,6 +501,12 @@ struct NavigationRootView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(.neonRed)
+            }
+
+            if route.isSavedRoute {
+                Label("Rute tersimpan — bisa dipakai offline lewat BLE tanpa internet.", systemImage: "bolt.fill")
+                    .font(.footnote)
+                    .foregroundColor(.neonGreen)
             }
         }
     }

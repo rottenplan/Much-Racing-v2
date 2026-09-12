@@ -58,6 +58,7 @@ private:
 
   bool loadFromSD();
   void startAP(); // Start Hotspot
+  String buildLiveJson(); // JSON telemetri live (dipakai API & BLE)
   void handleRoot();
   void handleApiLive();
   void handleUpdateGet();

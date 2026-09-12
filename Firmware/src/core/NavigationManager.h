@@ -80,6 +80,11 @@ public:
   void ingestLine(const String &line, NavSource source);
   void clearRoute();
 
+  // Push satu baris data ke phone yang terhubung lewat BLE (karakteristik TX,
+  // notify). Baris otomatis dipecah sesuai MTU; pemakai wajib mengakhiri dengan
+  // '\n'. Dipakai untuk telemetri live saat phone tidak join WiFi device.
+  void pushLine(const String &line);
+
 private:
   friend class NavWriteCallbacks;
   friend class NavServerCallbacks;

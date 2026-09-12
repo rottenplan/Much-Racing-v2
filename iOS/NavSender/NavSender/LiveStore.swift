@@ -47,6 +47,11 @@ final class LiveStore: ObservableObject {
     @Published var drag: DragRun = DragRun()
     @Published var polling = false
 
+    // Referensi BLE: saat kanal BLE aktif (device mengirim telemetri via BLE),
+    // polling WiFi /api/live dilewati agar tidak menabrak & tidak menggantung
+    // di IP device yang tidak terjangkau.
+    weak var bleSource: BLEManager?
+
     private var task: Task<Void, Never>?
 
     func start() {
@@ -78,16 +83,36 @@ final class LiveStore: ObservableObject {
     }
 
     func tick(force: Bool = false) async {
+        // BLE sudah memberi telemetri (device mengirim sendiri per detik):
+        // tidak perlu polling WiFi yang mungkin tidak terjangkau.
+        if let bleSource, bleSource.status.isConnected {
+            return
+        }
+
         let client = APClient()
         if let t = try? await client.fetchLive() {
-            connected = true
-            lastUpdated = Date()
-            telemetry = t
-            record(t)
-            updateDrag(with: t, now: Date().timeIntervalSince1970)
+            apply(t)
         } else if force || !connected {
             connected = false
         }
+    }
+
+    // Mark: - Terima telemetri (dari BLE maupun hasil polling WiFi)
+    //
+    // Satu jalan masuk agar drag meter, REC, dan status koneksi konsisten
+    // walau sumber datanya berganti (BLE live vs WiFi /api/live).
+
+    func apply(_ t: LiveTelemetry, now: Date = Date()) {
+        connected = true
+        lastUpdated = now
+        telemetry = t
+        record(t)
+        updateDrag(with: t, now: now.timeIntervalSince1970)
+    }
+
+    // Kanal BLE putus; polling WiFi tetap berjalan sebagai cadangan.
+    func markDisconnected() {
+        connected = false
     }
 
     // MARK: - REC (rekam trail + data)

@@ -1,7 +1,6 @@
 #include "SpeedometerScreen.h"
 #include "../../config.h"
 #include "../../core/BatteryManager.h"
-#include "../../core/INA219Manager.h"
 #include "../../core/GPSManager.h"
 #include "../../core/NavigationManager.h"
 #include "../../core/IMUManager.h"
@@ -66,7 +65,6 @@ void SpeedometerScreen::onShow() {
   _lastNavDistance = -1;
   _lastNavInstruction = "";
   _lastVolt = -1;
-  _lastCurrent = -1;
   _drawnBannerActive = false;
   _drawnBannerManeuver = -1;
   _drawnBannerDist = -1;
@@ -176,14 +174,9 @@ void SpeedometerScreen::update() {
       gear = 6;
   }
 
-  // 5. BATTERY / INA219 (volt & arus kelistrikan motor)
+  // 5. BATTERY (voltase baterai device)
   int bat = BatteryManager::getInstance().getPercentage();
   float volt = BatteryManager::getInstance().getVoltage();
-  float current = -1;
-  if (INA219Manager::getInstance().isPresent()) {
-    volt = INA219Manager::getInstance().getVoltage();
-    current = INA219Manager::getInstance().getCurrent();
-  }
 
   // Cek satuan (km/h atau mph) dari cache
   bool useMph = _lastUnits;
@@ -217,7 +210,6 @@ void SpeedometerScreen::update() {
       timeStr != _lastTime || trip != _lastTrip || sats != _lastSats ||
       abs(roll - _lastRoll) > 0.1f || abs(accY - _lastAccY) > 0.02f ||
       gear != _lastGear || bat != _lastBat || volt != _lastVolt ||
-      current != _lastCurrent ||
       navActive != _lastNavActive || navManeuver != _lastNavManeuver ||
       navDistance != _lastNavDistance || navText != _lastNavInstruction) {
     _lastSpeed = speed;
@@ -231,7 +223,6 @@ void SpeedometerScreen::update() {
     _lastGear = gear;
     _lastBat = bat;
     _lastVolt = volt;
-    _lastCurrent = current;
     _lastNavActive = navActive;
     _lastNavManeuver = navManeuver;
     _lastNavDistance = navDistance;
@@ -448,22 +439,6 @@ void SpeedometerScreen::drawDashboard(bool force) {
     int valX = cx + CELL_W / 2;
     int valY = cy + CELL_H / 2 + 8; // center, shifted down to clear top label
     tft->setTextPadding(CELL_W - 8);
-    if (i == 1) {
-      // VOLT meter (INA219): tegangan + arus, 2 baris font standar 8x16
-      tft->setTextFont(2);
-      tft->setTextSize(1);
-      tft->setTextDatum(MC_DATUM);
-      sprintf(buf, "%.1f", _lastVolt);
-      tft->setTextColor(colText, colBg);
-      tft->drawString(buf, valX, cy + CELL_H / 2 - 4);
-      if (_lastCurrent < 0)
-        strcpy(buf, "--");
-      else
-        sprintf(buf, "%.2fA", _lastCurrent);
-      tft->setTextColor(COLOR_ACCENT, colBg);
-      tft->drawString(buf, valX, cy + CELL_H / 2 + 14);
-      continue;
-    }
     if (i == 0 || i == 2)
       sprintf(buf, cells[i].fmt, (int)cells[i].val);
     else

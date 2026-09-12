@@ -57,6 +57,16 @@ struct ContentView: View {
         _location = StateObject(wrappedValue: location)
         _live = StateObject(wrappedValue: live)
         _navSession = StateObject(wrappedValue: navSession)
+
+        // Telemetri live via BLE: device mengirim sendiri per detik lewat kanal
+        // "MuchRacing-Nav", jadi iPhone tidak perlu join WiFi AP device.
+        live.bleSource = ble
+        ble.onTelemetry = { [weak live] t in
+            Task { @MainActor in live?.apply(t) }
+        }
+        ble.onDisconnected = { [weak live] in
+            Task { @MainActor in live?.markDisconnected() }
+        }
     }
 
     var body: some View {
@@ -75,6 +85,9 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .tint(.neonOrange)
         .onAppear {
+            // Pulihkan rute terakhir yang dihitung saat online untuk navigasi
+            // offline lewat BLE, lalu hidupkan radio BLE & polling telemetri.
+            route.restoreSavedRoute()
             ble.start()
             live.start()
         }
@@ -83,6 +96,11 @@ struct ContentView: View {
         }
         .onChange(of: selection) { _, new in
             visited.insert(new)
+        }
+        .onChange(of: ble.status) { _, new in
+            // BLE (kembali) tersambung saat navigasi sedang berjalan: kirim
+            // ulang langkah aktif ke layar device.
+            if new.isConnected { navSession.onBleConnected() }
         }
     }
 

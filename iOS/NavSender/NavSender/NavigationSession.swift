@@ -116,6 +116,13 @@ final class NavigationSession: ObservableObject {
         ble.send(stepJSON(step))
     }
 
+    // BLE baru (kembali) tersambung saat navigasi berjalan: kirim ulang langkah
+    // aktif supaya layar device langsung menampilkan manuver yang benar.
+    func onBleConnected() {
+        guard isActive, !hasArrived, let step = currentStep else { return }
+        ble.send(stepJSON(step))
+    }
+
     func end() {
         isActive = false
         location.stop()
