@@ -26,6 +26,7 @@ struct SessionDetailView: View {
                 shareCard
             }
             .padding()
+            .padding(.bottom, 12)
         }
         .background(RacingBackground())
         .navigationTitle(analysis.name)

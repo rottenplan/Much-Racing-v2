@@ -15,6 +15,13 @@ final class NavigationSession: ObservableObject {
     @Published var remainingM: Double?
     @Published var hasArrived = false
 
+    // State untuk live countdown ala Google Maps: jarak tersisa ke belokan
+    // aktif dikirim ulang ke device tiap berubah (dibulatkan 5 m, minimal
+    // jeda 1 detik) supaya tampilan device ikut menghitung mundur.
+    private var lastPushedDist: Double = -1
+    private var lastPushTime = Date.distantPast
+    private let minPushGap: TimeInterval = 1.0
+
     private let ble: BLEManager
     private let route: RouteManager
     private let location: LocationTracker
@@ -57,6 +64,8 @@ final class NavigationSession: ObservableObject {
         currentIndex = 0
         remainingM = nil
         hasArrived = false
+        lastPushedDist = -1
+        lastPushTime = .distantPast
     }
 
     // Mulai / lanjutkan navigasi dari langkah pertama.
@@ -65,6 +74,8 @@ final class NavigationSession: ObservableObject {
         currentIndex = 0
         hasArrived = false
         remainingM = nil
+        lastPushedDist = -1
+        lastPushTime = .distantPast
         isActive = true
         location.start()
         if let step = currentStep {
@@ -73,7 +84,8 @@ final class NavigationSession: ObservableObject {
         }
     }
 
-    // Maju ke langkah berikutnya saat posisi iPhone < 25 m dari titik manuver.
+    // Maju ke langkah berikutnya saat posisi iPhone sudah sangat dekat (< 15 m)
+    // dari titik manuver, lalu dorong sisa jarak live ke layar device.
     func updateProgress(with loc: CLLocation) {
         guard isActive, !hasArrived else { return }
         guard let step = currentStep else { return }
@@ -82,12 +94,32 @@ final class NavigationSession: ObservableObject {
         let dist = loc.distance(from: target)
         remainingM = max(0, dist)
 
-        if dist < 25 { advance() }
+        if dist < 15 {
+            advance()
+        } else {
+            pushDistance()
+        }
+    }
+
+    // Dorong jarak ke belokan yang sekarang (hitung mundur) ke layar device.
+    // Dibulatkan ke kelipatan 5 m dan dibatasi 1 push/detik agar hemat BLE &
+    // layar device; nilai tetap ter-update mendekati belokan.
+    private func pushDistance() {
+        guard isActive, !hasArrived, ble.status.isConnected else { return }
+        guard let step = currentStep, let rem = remainingM else { return }
+        let rounded = (rem / 5).rounded() * 5
+        let now = Date()
+        guard rounded != lastPushedDist, now.timeIntervalSince(lastPushTime) >= minPushGap else { return }
+        lastPushedDist = rounded
+        lastPushTime = now
+        ble.send(stepJSON(step, distOverride: rounded))
     }
 
     // Langkah berikutnya (tombol manual atau auto-advance).
     func advance() {
         guard isActive else { return }
+        lastPushedDist = -1
+        lastPushTime = .distantPast
         if currentIndex < route.steps.count - 1 {
             currentIndex += 1
             remainingM = Double(route.steps[currentIndex].distanceM)
@@ -105,22 +137,33 @@ final class NavigationSession: ObservableObject {
         guard isActive, currentIndex > 0 else { return }
         currentIndex -= 1
         hasArrived = false
+        lastPushedDist = -1
+        lastPushTime = .distantPast
         remainingM = Double(route.steps[currentIndex].distanceM)
         if let s = currentStep { ble.send(stepJSON(s)) }
     }
 
     // Kirim ulang langkah tiap 45 detik: layar device tidak akan "tidur"
-    // walaupun pengendara berhenti lama (lampu merah, macet).
+    // walaupun pengendara berhenti lama (lampu merah, macet). Memakai jarak
+    // live kalau ada, agar tampilan tetap konsisten dengan hitung mundur.
     func keepAlive() {
         guard isActive, !hasArrived, let step = currentStep else { return }
-        ble.send(stepJSON(step))
+        sendCurrent(step)
     }
 
     // BLE baru (kembali) tersambung saat navigasi berjalan: kirim ulang langkah
     // aktif supaya layar device langsung menampilkan manuver yang benar.
     func onBleConnected() {
         guard isActive, !hasArrived, let step = currentStep else { return }
-        ble.send(stepJSON(step))
+        sendCurrent(step)
+    }
+
+    private func sendCurrent(_ step: NavStep) {
+        if let rem = remainingM {
+            ble.send(stepJSON(step, distOverride: (rem / 5).rounded() * 5))
+        } else {
+            ble.send(stepJSON(step))
+        }
     }
 
     func end() {
@@ -129,10 +172,15 @@ final class NavigationSession: ObservableObject {
         ble.sendClear()
     }
 
-    private func stepJSON(_ step: NavStep) -> String {
+    private func stepJSON(_ step: NavStep, distOverride: Double? = nil) -> String {
         let escaped = step.instruction
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+
+        // Jarak: biasanya jarak tetap dari langkah MapKit; saat live countdown
+        // berjalan (sebelum langkah berpindah) pakai nilai override agar layar
+        // device ikut menghitung mundur ala Google Maps.
+        let dist = distOverride.map { Int(round($0)) } ?? step.distanceM
 
         // Info tambahan untuk layar device: rute alternatif terpilih + total
         // sisa jarak ke tujuan (ditampilkan sebagai badge & TOTAL di device).
@@ -146,6 +194,6 @@ final class NavigationSession: ObservableObject {
             extra += ",\"total\":\(total)"
         }
 
-        return "{\"icon\":\(step.icon),\"dist\":\(step.distanceM),\"text\":\"\(escaped)\"\(extra)}"
+        return "{\"icon\":\(step.icon),\"dist\":\(dist),\"text\":\"\(escaped)\"\(extra)}"
     }
 }

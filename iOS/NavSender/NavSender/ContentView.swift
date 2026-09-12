@@ -45,6 +45,7 @@ struct ContentView: View {
 
     @State private var selection: AppTab = .home
     @State private var visited: Set<AppTab> = [.home]
+    @State private var navSessionActive = false
 
     init() {
         let ble = BLEManager()
@@ -75,7 +76,11 @@ struct ContentView: View {
             tabContent
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            RacingTabBar(selection: $selection)
+            // Sembunyikan tab bar saat layar navigasi penuh aktif agar
+            // peta menempel full-screen dan tombol stop tidak tertutup.
+            if !(selection == .nav && navSessionActive) {
+                RacingTabBar(selection: $selection)
+            }
         }
         .environmentObject(ble)
         .environmentObject(route)
@@ -131,7 +136,7 @@ struct ContentView: View {
         case .live:
             NavigationStack { LiveView() }
         case .nav:
-            NavigationStack { NavigationRootView() }
+            NavigationStack { NavigationRootView(navSessionActive: $navSessionActive) }
         case .sessions:
             NavigationStack { SessionsView() }
         case .settings:

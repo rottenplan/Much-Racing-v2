@@ -29,6 +29,7 @@ struct HomeView: View {
                     hubGrid
                 }
                 .padding()
+                .padding(.bottom, 10)
             }
             .background(RacingBackground())
 

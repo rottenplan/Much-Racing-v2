@@ -25,22 +25,22 @@ struct LiveView: View {
         ScrollView {
             VStack(spacing: 14) {
                 liveBadge
-                if live.connected {
-                    Picker("Mode", selection: $mode) {
-                        ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+                if !live.connected {
+                    connectionWarning
+                }
+                Picker("Mode", selection: $mode) {
+                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
 
-                    switch mode {
-                    case .telemetry: telemetryContent
-                    case .drag: dragContent
-                    case .navigation: navigationContent
-                    }
-                } else {
-                    disconnectedContent
+                switch mode {
+                case .telemetry: telemetryContent
+                case .drag: dragContent
+                case .navigation: navigationContent
                 }
             }
             .padding()
+            .padding(.bottom, 16)
         }
         .background(RacingBackground())
         .navigationTitle("Live")
@@ -78,30 +78,30 @@ struct LiveView: View {
         .padding(.horizontal, 4)
     }
 
-    private var disconnectedContent: some View {
-        VStack(spacing: 14) {
+    private var connectionWarning: some View {
+        HStack(spacing: 10) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 44))
-                .foregroundColor(.secondary)
-            Text("Belum terhubung ke device")
-                .font(.headline)
-            Text("Hubungkan iPhone ke WiFi AP \u{201C}MuchRacing-GPS\u{201D} (sandi 12345678) atau ke jaringan tempat device terhubung, lalu tekan Coba Lagi.")
+                .font(.title3)
+                .foregroundColor(.neonYellow)
+            Text("Device tidak terhubung — hanya data terakhir yang tampil.")
                 .font(.footnote)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            Button {
+                .foregroundColor(.white)
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            Button("Hubungkan") {
+                ble.scan()
                 Task { await live.tick(force: true) }
-            } label: {
-                Label("Coba Lagi", systemImage: "arrow.clockwise")
-                    .frame(maxWidth: .infinity)
             }
+            .font(.caption.weight(.bold))
             .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(.neonYellow)
         }
-        .padding(24)
+        .padding(10)
         .background(
-            RacingCard(accent: .neonRed) {
-                Color.clear
-            }
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.neonYellow.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.neonYellow.opacity(0.6), lineWidth: 1))
         )
     }
 
@@ -305,6 +305,16 @@ struct LiveView: View {
     private var dragContent: some View {
         RacingCard(accent: .neonRed, glow: true) {
             VStack(spacing: 16) {
+                // Status (SIAP/BERJALAN/SELESAI) selalu di atas, tidak tertutup
+                // ui bawah.
+                HStack {
+                    Text("DRAG LIVE")
+                        .font(.headline.weight(.bold))
+                        .tracking(1)
+                    Spacer()
+                    RacingBadge(text: live.drag.status.rawValue.uppercased(), color: dragStatusColor)
+                }
+
                 ZStack {
                     Circle()
                         .fill(RacingTheme.card.opacity(0.5))
@@ -332,8 +342,6 @@ struct LiveView: View {
                     .font(.title3.weight(.bold))
                     .fontDesign(.rounded)
                     .monospacedDigit()
-
-                RacingBadge(text: live.drag.status.rawValue.uppercased(), color: dragStatusColor)
 
                 HStack {
                     stat("0-60", live.drag.t0to60)

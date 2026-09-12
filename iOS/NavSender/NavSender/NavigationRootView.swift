@@ -16,6 +16,7 @@ struct NavigationRootView: View {
     @EnvironmentObject var location: LocationTracker
     @EnvironmentObject var live: LiveStore
     @EnvironmentObject var navSession: NavigationSession
+    @Binding var navSessionActive: Bool
 
     @State private var query = ""
     @State private var searchResults: [MKMapItem] = []
@@ -62,6 +63,10 @@ struct NavigationRootView: View {
         .navigationTitle("Navigasi")
         .navigationDestination(isPresented: $showNavSession) {
             NavigationSessionView()
+        }
+        .onChange(of: showNavSession) { _, visible in
+            // Sembunyikan tab bar hanya selama layar navigasi penuh tampil.
+            navSessionActive = visible
         }
         .alert("Perhatian", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -346,17 +351,28 @@ struct NavigationRootView: View {
 
                 Divider().overlay(Color.neonOrange.opacity(0.2))
 
-                if route.steps.isEmpty {
-                    destinationArea
-                } else {
-                    routeArea
-                }
+                // Isi (alternatif rute, ringkasan, tombol aksi) dibuat bisa
+                // di-scroll dan dibatasi tingginya supaya tombol "Mulai
+                // Navigasi" tidak terdorong keluar / tertutup bar bawah saat
+                // ada banyak rute alternatif.
+                ScrollView {
+                    VStack(spacing: 10) {
+                        if route.steps.isEmpty {
+                            destinationArea
+                        } else {
+                            routeArea
+                        }
 
-                if live.connected && route.steps.isEmpty {
-                    Label("Catatan: rute dihitung via internet, lalu otomatis disimpan untuk navigasi offline lewat BLE.", systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundColor(.neonYellow)
+                        if live.connected && route.steps.isEmpty {
+                            Label("Catatan: rute dihitung via internet, lalu otomatis disimpan untuk navigasi offline lewat BLE.", systemImage: "info.circle")
+                                .font(.footnote)
+                                .foregroundColor(.neonYellow)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxHeight: 260)
+                .scrollIndicators(.hidden)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)

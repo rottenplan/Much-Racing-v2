@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import UIKit
 
 // MARK: - Layar navigasi ala CarPlay
 //
@@ -25,6 +26,7 @@ struct NavigationSessionView: View {
     // Peta: heading mode mengikuti posisi & arah kendaraan.
     @State private var camera: MapCameraPosition = .userLocation(followsHeading: true, fallback: .automatic)
     @State private var isUserPanning = false
+    @State private var followHeading = true
 
     // Daftar belokan lengkap (drawer ala Google Maps) yang dibuka dari bar ETA.
     @State private var showStepList = false
@@ -37,23 +39,45 @@ struct NavigationSessionView: View {
         ZStack {
             mapLayer.ignoresSafeArea()
 
-            VStack {
+            VStack(spacing: 0) {
+                // 1) Banner manuver di atas (berisi tombol Selesai di kanan).
                 maneuverBanner
-                if isUserPanning { recenterButton }
-                Spacer()
+
+                // Area tengah peta bebas, kontrol dikelompokkan rapi di bawah.
+                Spacer(minLength: 8)
+
+                // 2) Segmen kontrol: recenter (kiri) + kompas (kanan).
+                HStack {
+                    if isUserPanning { recenterButton }
+                    Spacer()
+                    compassButton
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+
+                // 3) Bar ETA / info sisa rute di paling bawah.
                 etaBar
             }
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear { startNavigation() }
+        .onAppear {
+            // Jangan biarkan layar iPhone tidur/mengunci selama navigasi —
+            // kalau tidak, UI menghilang saat rute berjalan.
+            UIApplication.shared.isIdleTimerDisabled = true
+            startNavigation()
+        }
         .onReceive(location.$lastLocation) { loc in
             if let loc { session.updateProgress(with: loc) }
         }
         .onReceive(keepAlive) { _ in
             session.keepAlive()
         }
-        .onDisappear { location.stop() }
+        .onDisappear {
+            // Kembalikan perilaku normal layar setelah layar navigasi ditutup.
+            UIApplication.shared.isIdleTimerDisabled = false
+            location.stop()
+        }
         .sheet(isPresented: $showStepList) {
             StepListSheet(currentIndex: $session.currentIndex)
                 .presentationDetents([.medium, .large])
@@ -87,7 +111,8 @@ struct NavigationSessionView: View {
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, showsTraffic: true))
         .overlay(Color.black.opacity(0.22).allowsHitTesting(false))
         .mapControls {
-            MapCompass()
+            // MapCompass bawaan MapKit tampil di kanan-atas peta dan menabrak
+            // status bar (icon baterai). Diganti kompas custom (compassButton).
             MapScaleView()
         }
         // Kalau pengendara geser/zoom manual, posisi kamera berubah menjadi
@@ -99,18 +124,55 @@ struct NavigationSessionView: View {
 
     private var recenterButton: some View {
         Button {
+            followHeading = true
             camera = .userLocation(followsHeading: true, fallback: .automatic)
             isUserPanning = false
         } label: {
-            Image(systemName: "location.fill")
-                .font(.body.weight(.semibold))
-                .foregroundColor(.accentColor)
-                .padding(12)
-                .background(Circle().fill(.regularMaterial))
-                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+            ZStack {
+                Circle()
+                    .fill(RacingTheme.card)
+                    .overlay(Circle().stroke(Color.neonCyan.opacity(0.6), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                Image(systemName: "location.fill")
+                    .font(.callout.weight(.bold))
+                    .foregroundColor(.neonCyan)
+            }
+            .frame(width: 38, height: 38)
         }
         .buttonStyle(.plain)
-        .padding(.top, 6)
+        .accessibilityLabel("Ikuti posisi saya")
+    }
+
+    // Kompas custom (kanan-bawah, di atas bar ETA): tidak menabrak status bar.
+    // Jarum mengarah ke utara sesuai heading kendaraan; ketuk untuk toggle
+    // mode mengikuti arah (heading) vs menghadap utara.
+    private var compassButton: some View {
+        Button {
+            followHeading.toggle()
+            camera = followHeading
+                ? .userLocation(followsHeading: true, fallback: .automatic)
+                : .userLocation(fallback: .automatic)
+            isUserPanning = false
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(RacingTheme.card)
+                    .overlay(Circle().stroke(Color.neonOrange.opacity(0.6), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                Image(systemName: "location.north.fill")
+                    .font(.callout.weight(.bold))
+                    .foregroundColor(.neonOrange)
+                    // Rotasi negatif agar jarum menunjuk utara sesuai heading.
+                    .rotationEffect(.degrees(-(location.lastLocation?.course ?? 0)))
+                Text("N")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
+                    .offset(y: 13)
+            }
+            .frame(width: 38, height: 38)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Kompas — atur arah peta")
     }
 
     // MARK: - Banner manuver (ala CarPlay)
@@ -133,7 +195,25 @@ struct NavigationSessionView: View {
                         .foregroundColor(.white.opacity(0.92))
                         .lineLimit(2)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
+
+                // Tombol stop besar di pojok kanan-atas: selalu terlihat dan
+                // mudah ditekan saat berkendara (tidak berada di bar bawah).
+                Button {
+                    session.end()
+                    dismiss()
+                } label: {
+                    Label("Selesai", systemImage: "stop.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(Capsule().fill(Color.neonRed))
+                        .overlay(Capsule().stroke(Color.neonRed.opacity(0.7), lineWidth: 1))
+                        .neonGlow(.neonRed, radius: 6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Akhiri navigasi")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -216,19 +296,6 @@ struct NavigationSessionView: View {
             }
             .buttonStyle(.plain)
             .disabled(route.steps.isEmpty || session.hasArrived)
-
-            Button {
-                session.end()
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.bold))
-                    .foregroundColor(.white)
-                    .padding(11)
-                    .background(Circle().fill(Color.neonRed))
-                    .neonGlow(.neonRed, radius: 6)
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
