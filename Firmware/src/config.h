@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define FIRMWARE_VERSION "v4.3.0"
+#define FIRMWARE_VERSION "v4.3.1"
 
 // Global I2C Mutex for multi-core thread safety
 extern SemaphoreHandle_t i2cMutex;
